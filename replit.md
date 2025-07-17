@@ -111,3 +111,9 @@ The application follows a modern full-stack architecture with clear separation o
 - **User Education**: Transparent communication about Instagram's privacy protections and authentication requirements
 
 **Project Status**: Complete and production-ready. Instagram system handles authentication requirements gracefully while providing excellent alternatives.
+
+### Current Platform Status (July 17, 2025)
+- **Instagram**: Comprehensive support with 5 extraction methods + manual alternatives for authentication requirements
+- **YouTube**: Temporarily restricted due to platform protection updates - clear user guidance provided with alternatives
+- **TikTok, Twitter, Other platforms**: Full download support maintained
+- **Error Handling**: Professional user-friendly messages replace technical errors across all platforms

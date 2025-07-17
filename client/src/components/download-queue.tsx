@@ -252,15 +252,25 @@ export function DownloadQueue() {
                     )}
                     
                     {download.status !== "downloading" && (
-                      <div className="flex items-center space-x-4 mt-2">
-                        <span className="flex items-center text-sm">
-                          {getStatusIcon(download.status)}
-                          <span className="ml-1 capitalize">{download.status}</span>
-                        </span>
-                        <span className="text-sm text-material-gray-light">
-                          {download.quality} {download.format?.toUpperCase()}
-                          {download.fileSize && ` • ${download.fileSize}`}
-                        </span>
+                      <div className="mt-3">
+                        <div className="flex items-center space-x-4 mb-2">
+                          <span className="flex items-center text-sm">
+                            {getStatusIcon(download.status)}
+                            <span className="ml-1 capitalize">{download.status}</span>
+                          </span>
+                          <span className="text-sm text-material-gray-light">
+                            {download.quality} {download.format?.toUpperCase()}
+                            {download.fileSize && ` • ${download.fileSize}`}
+                          </span>
+                        </div>
+                        
+                        {download.status === "failed" && download.errorMessage && (
+                          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-sm text-red-800 whitespace-pre-line">
+                              {download.errorMessage}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

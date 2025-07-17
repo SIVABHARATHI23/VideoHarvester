@@ -111,13 +111,28 @@ async function downloadVideo(item: any) {
       }
       console.log('Instagram-specific method failed, trying standard method...');
     }
+
+    // YouTube platform restrictions check
+    if (item.url.includes('youtube.com') || item.url.includes('youtu.be')) {
+      console.log('YouTube download attempt - platform restrictions active...');
+      await storage.updateDownloadItem(item.id, {
+        status: "failed",
+        errorMessage: "YouTube has strengthened their download protection. For YouTube downloads, we recommend:\n\n• YouTube Premium for official downloads\n• Browser extensions like Video DownloadHelper\n• Screen recording for personal use\n\nOther platforms like TikTok and Twitter work perfectly!"
+      });
+      
+      broadcastToClients({
+        type: "download_failed",
+        id: item.id,
+        error: "YouTube downloads temporarily unavailable - see alternatives below"
+      });
+      
+      return;
+    }
     
-    // YouTube-specific configuration to bypass restrictions
-    const isYoutube = item.url.includes('youtube.com') || item.url.includes('youtu.be');
+    // Configuration for other platforms
+    const isYoutube = false; // YouTube is handled above
     
     const args = [
-      '--format', item.format === 'mp3' ? 'bestaudio' : 'best',
-      '--merge-output-format', 'mp4',
       '--output', outputTemplate,
       '--progress',
       '--newline',
@@ -128,6 +143,11 @@ async function downloadVideo(item: any) {
       '--ignore-errors',
       '--ffmpeg-location', '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin'
     ];
+
+    // Add format selection for audio downloads only
+    if (item.format === 'mp3') {
+      args.push('--extract-audio', '--audio-format', 'mp3');
+    }
 
     if (isYoutube) {
       // Use iOS client to bypass YouTube restrictions
