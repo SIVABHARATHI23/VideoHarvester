@@ -117,11 +117,11 @@ async function downloadVideo(item: any) {
       console.log('YouTube download with Premium support enabled...');
     }
     
-    // Configuration for other platforms
-    const isYoutube = false; // YouTube is handled above
+    // Create unique output template with ID to prevent conflicts
+    const uniqueOutputTemplate = path.join(downloadPath, `%(title)s_${item.id}.%(ext)s`);
     
     const args = [
-      '--output', outputTemplate,
+      '--output', uniqueOutputTemplate,
       '--progress',
       '--newline',
       '--no-playlist',
@@ -234,13 +234,31 @@ async function downloadVideo(item: any) {
   ytdlp.on('close', async (code) => {
       clearTimeout(downloadTimeout);
       if (code === 0) {
-        // Find the actual downloaded file
+        // Find the actual downloaded file - look for newest file with correct ID
         try {
           const files = await fs.promises.readdir(downloadPath);
-          const downloadedFile = files.find(file => 
-            !file.startsWith('.') && 
+          
+          // First try to find file with the specific ID
+          let downloadedFile = files.find(file => 
+            file.includes(`_${item.id}.`) && 
             (file.endsWith('.mp4') || file.endsWith('.mp3') || file.endsWith('.webm') || file.endsWith('.mkv'))
           );
+          
+          // If not found, get the newest video file as fallback
+          if (!downloadedFile) {
+            const videoFiles = files
+              .filter(file => 
+                !file.startsWith('.') && 
+                (file.endsWith('.mp4') || file.endsWith('.mp3') || file.endsWith('.webm') || file.endsWith('.mkv'))
+              )
+              .map(file => ({
+                file,
+                time: fs.statSync(path.join(downloadPath, file)).mtime
+              }))
+              .sort((a, b) => b.time.getTime() - a.time.getTime());
+            
+            downloadedFile = videoFiles[0]?.file;
+          }
           
           const actualFilePath = downloadedFile ? path.join(downloadPath, downloadedFile) : null;
           let fileSize = "Unknown";

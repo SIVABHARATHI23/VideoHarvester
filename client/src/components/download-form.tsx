@@ -23,12 +23,12 @@ export function DownloadForm() {
       const response = await apiRequest("POST", "/api/downloads", data);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/downloads"] });
-      setUrl("");
+      console.log('Download added successfully:', data);
       toast({
         title: "Download Added",
-        description: "Video has been added to the download queue.",
+        description: `${data.title || 'Video'} has been added to the download queue.`,
       });
     },
     onError: (error) => {
@@ -44,17 +44,24 @@ export function DownloadForm() {
     e.preventDefault();
     if (!url.trim()) return;
 
+    // Clean and validate URL
+    const cleanUrl = url.trim();
+    console.log('Submitting URL:', cleanUrl);
+
     // Show Instagram warning before attempting download
-    if (url.includes('instagram.com')) {
+    if (cleanUrl.includes('instagram.com')) {
       toast({
-        title: "Instagram Authentication Required",
+        title: "Instagram Authentication Required", 
         description: "Instagram blocks automated downloads. Trying advanced methods, but manual alternatives may be needed.",
         variant: "default",
       });
     }
 
+    // Clear the input immediately when submitting
+    setUrl("");
+
     addDownloadMutation.mutate({
-      url: url.trim(),
+      url: cleanUrl,
       status: "queued",
       format: selectedFormat,
       quality: selectedFormat === "mp3" ? null : "720p",

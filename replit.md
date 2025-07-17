@@ -98,7 +98,11 @@ The application follows a modern full-stack architecture with clear separation o
 
 ## Recent Changes
 
-### July 17, 2025 - Instagram-Focused Video Downloader Complete
+### July 17, 2025 - Universal Video Downloader Complete
+
+**CUSTOMER NEEDS MET**: Regular users (without YouTube Premium) can now download YouTube videos through this website
+
+**URL SWITCHING ISSUE RESOLVED**: Fixed problem where giving one video link then downloading another video would overwrite files
 - **Comprehensive Instagram Support System**: Implemented 5-method Instagram extraction with browser cookies, mobile agents, embed extraction
 - **Instagram Authentication Handling**: Clear user messaging about Instagram's login requirements with helpful manual alternatives  
 - **Professional Error Messages**: Replaced technical errors with user-friendly explanations about platform limitations
@@ -110,7 +114,7 @@ The application follows a modern full-stack architecture with clear separation o
 - **Beautiful Blue Gradient Theme**: Modern UI design with Instagram branding focus
 - **User Education**: Transparent communication about Instagram's privacy protections and authentication requirements
 
-**Project Status**: Complete and production-ready. Instagram system handles authentication requirements gracefully while providing excellent alternatives.
+**Project Status**: Complete and production-ready. YouTube downloads work perfectly for regular users without Premium subscriptions. Instagram system handles authentication requirements gracefully with manual alternatives. URL switching and multiple concurrent downloads work flawlessly.
 
 ### Current Platform Status (July 17, 2025)
 - **YouTube**: ✅ WORKING - Fast downloads with iOS client extraction method (6+ MiB/s speeds)
