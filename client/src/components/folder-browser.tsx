@@ -57,10 +57,18 @@ export function FolderBrowser({ isOpen, onClose, onSelectPath, currentPath = "~"
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[600px]">
+      <DialogContent 
+        className="max-w-2xl max-h-[600px]"
+        aria-describedby="folder-browser-description"
+      >
         <DialogHeader>
           <DialogTitle>Select Download Folder</DialogTitle>
         </DialogHeader>
+        
+        {/* Hidden description for accessibility */}
+        <div id="folder-browser-description" className="sr-only">
+          Browse and select a folder for downloading files. Navigate through directories and choose your preferred location.
+        </div>
 
         <div className="space-y-4">
           {/* Current Path Input */}

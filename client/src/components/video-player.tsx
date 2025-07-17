@@ -26,7 +26,10 @@ export function VideoPlayer({ isOpen, onClose, videoTitle, fileName }: VideoPlay
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={`${isFullscreen ? 'max-w-full max-h-full w-screen h-screen' : 'max-w-4xl'} p-0`}>
+      <DialogContent 
+        className={`${isFullscreen ? 'max-w-full max-h-full w-screen h-screen' : 'max-w-4xl'} p-0`}
+        aria-describedby="video-player-description"
+      >
         <div className="relative bg-black rounded-lg overflow-hidden">
           {/* Header */}
           <DialogHeader className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4">
@@ -62,6 +65,11 @@ export function VideoPlayer({ isOpen, onClose, videoTitle, fileName }: VideoPlay
               </div>
             </div>
           </DialogHeader>
+          
+          {/* Hidden description for accessibility */}
+          <div id="video-player-description" className="sr-only">
+            Video player for {videoTitle}. Use controls to play, pause, adjust volume, or view fullscreen.
+          </div>
 
           {/* Video Player */}
           <div className="relative">

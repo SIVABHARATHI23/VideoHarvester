@@ -311,9 +311,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currentPath = path.join(process.env.HOME || "/home/runner", currentPath.slice(2));
       }
       
+      // Ensure the path exists and is accessible
+      await fs.promises.access(currentPath);
+      
       const items = await fs.promises.readdir(currentPath, { withFileTypes: true });
       const folders = items
-        .filter(item => item.isDirectory() && !item.name.startsWith('.'))
+        .filter(item => {
+          try {
+            return item.isDirectory() && !item.name.startsWith('.');
+          } catch {
+            return false;
+          }
+        })
         .map(item => ({
           name: item.name,
           path: path.join(currentPath, item.name),
@@ -323,7 +332,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Add parent directory option
       const parentPath = path.dirname(currentPath);
-      if (parentPath !== currentPath) {
+      if (parentPath !== currentPath && parentPath !== '/') {
         folders.unshift({
           name: "..",
           path: parentPath,
@@ -336,7 +345,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         folders
       });
     } catch (error) {
-      res.status(500).json({ message: "Failed to browse folders" });
+      console.error('Browse folders error:', error);
+      res.status(500).json({ message: "Failed to browse folders", error: error.message });
     }
   });
 
