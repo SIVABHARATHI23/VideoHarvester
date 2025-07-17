@@ -41,6 +41,15 @@ export function DownloadForm() {
     e.preventDefault();
     if (!url.trim()) return;
 
+    // Show warning for Instagram URLs
+    if (url.includes('instagram.com')) {
+      toast({
+        title: "Instagram Download Notice",
+        description: "Instagram downloads often fail due to login requirements. YouTube, TikTok, and other platforms work much better.",
+        variant: "destructive",
+      });
+    }
+
     addDownloadMutation.mutate({
       url: url.trim(),
       status: "queued",
@@ -58,6 +67,12 @@ export function DownloadForm() {
               Universal Video Downloader
             </h2>
             <p className="text-modern-muted">Download videos and audio from 1000+ platforms</p>
+            <div className="flex flex-wrap justify-center gap-2 mt-3">
+              <Badge variant="secondary" className="text-xs">✓ YouTube</Badge>
+              <Badge variant="secondary" className="text-xs">✓ TikTok</Badge>
+              <Badge variant="secondary" className="text-xs">✓ Twitter</Badge>
+              <Badge variant="outline" className="text-xs">⚠ Instagram (Limited)</Badge>
+            </div>
           </div>
           
           <form onSubmit={handleSubmit} className="space-y-6">

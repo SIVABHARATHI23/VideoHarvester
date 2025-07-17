@@ -90,6 +90,9 @@ async function downloadVideo(item: any) {
     if (item.url.includes('instagram.com')) {
       args.push('--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
       args.push('--referer', 'https://www.instagram.com/');
+      args.push('--extractor-args', 'instagram:api_token=');
+      // Try to get around some restrictions
+      args.push('--no-check-certificate');
     }
     
     if (item.format === 'mp3') {
@@ -257,6 +260,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           validatedData.url = `https://www.youtube.com/watch?v=${videoId}`;
           console.log('Cleaned YouTube URL:', validatedData.url);
         }
+      }
+      
+      // Check for Instagram and warn user immediately
+      if (validatedData.url.includes('instagram.com')) {
+        console.log('Instagram URL detected - this may fail due to authentication requirements');
       }
       
       // Extract video info
