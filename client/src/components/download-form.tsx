@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { Link, Plus, Play, Camera, Music, Video, HelpCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Link, Plus, Play, Camera, Music, Video, HelpCircle, Zap, Star, Crown } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { AlternativeMethods } from "./alternative-methods";
@@ -14,6 +15,7 @@ import type { InsertDownloadItem } from "@shared/schema";
 export function DownloadForm() {
   const [url, setUrl] = useState("");
   const [selectedFormat, setSelectedFormat] = useState<"mp4" | "mp3">("mp4");
+  const [selectedQuality, setSelectedQuality] = useState<"1080p" | "720p" | "480p" | "best">("best");
   const [showAlternatives, setShowAlternatives] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -64,7 +66,7 @@ export function DownloadForm() {
       url: cleanUrl,
       status: "queued",
       format: selectedFormat,
-      quality: selectedFormat === "mp3" ? null : "720p",
+      quality: selectedFormat === "mp3" ? null : selectedQuality,
     });
   };
 
@@ -129,6 +131,64 @@ export function DownloadForm() {
                 </button>
             </div>
           </div>
+
+            {/* Quality Selection for Video */}
+            {selectedFormat === "mp4" && (
+              <div className="text-center">
+                <label className="text-sm font-semibold text-modern-muted mb-3 block">
+                  Video Quality
+                </label>
+                <div className="inline-flex bg-modern-surface-alt rounded-xl p-1 border border-modern-border">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedQuality("best")}
+                    className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
+                      selectedQuality === "best"
+                        ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg transform scale-105"
+                        : "text-modern-text-muted hover:text-purple-500 hover:bg-white"
+                    }`}
+                  >
+                    <Crown className="w-4 h-4 mr-2" />
+                    Best Quality
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedQuality("1080p")}
+                    className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
+                      selectedQuality === "1080p"
+                        ? "bg-modern-primary text-white shadow-lg transform scale-105"
+                        : "text-modern-text-muted hover:text-modern-primary hover:bg-white"
+                    }`}
+                  >
+                    <Star className="w-4 h-4 mr-2" />
+                    1080p HD
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedQuality("720p")}
+                    className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
+                      selectedQuality === "720p"
+                        ? "bg-modern-accent text-white shadow-lg transform scale-105"
+                        : "text-modern-text-muted hover:text-modern-accent hover:bg-white"
+                    }`}
+                  >
+                    <Zap className="w-4 h-4 mr-2" />
+                    720p
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedQuality("480p")}
+                    className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
+                      selectedQuality === "480p"
+                        ? "bg-gray-500 text-white shadow-lg transform scale-105"
+                        : "text-modern-text-muted hover:text-gray-500 hover:bg-white"
+                    }`}
+                  >
+                    480p
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* URL Input with Modern Design */}
             <div className="relative group">

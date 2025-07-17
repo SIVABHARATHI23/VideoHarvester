@@ -140,7 +140,19 @@ async function downloadVideo(item: any) {
 
     if (item.url.includes('youtube.com') || item.url.includes('youtu.be')) {
       // Enhanced YouTube extraction for regular users without Premium
-      args.push('--format', 'best[height<=720]/best');
+      let formatString = 'best';
+      
+      if (item.quality === 'best') {
+        formatString = 'best[height<=1080]/best';
+      } else if (item.quality === '1080p') {
+        formatString = 'best[height<=1080]/best[height<=720]/best';
+      } else if (item.quality === '720p') {
+        formatString = 'best[height<=720]/best';
+      } else if (item.quality === '480p') {
+        formatString = 'best[height<=480]/best';
+      }
+      
+      args.push('--format', formatString);
       args.push('--extractor-args', 'youtube:player_client=ios,web');
       args.push('--user-agent', 'com.google.ios.youtube/19.29.1 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X; en_US)');
       args.push('--add-header', 'Accept-Language:en-US,en;q=0.9');
