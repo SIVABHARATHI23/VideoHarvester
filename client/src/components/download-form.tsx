@@ -4,14 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Link, Plus, Play, Camera, Music, Video } from "lucide-react";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Link, Plus, Play, Camera, Music, Video, HelpCircle } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { AlternativeMethods } from "./alternative-methods";
 import type { InsertDownloadItem } from "@shared/schema";
 
 export function DownloadForm() {
   const [url, setUrl] = useState("");
   const [selectedFormat, setSelectedFormat] = useState<"mp4" | "mp3">("mp4");
+  const [showAlternatives, setShowAlternatives] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -41,13 +44,10 @@ export function DownloadForm() {
     e.preventDefault();
     if (!url.trim()) return;
 
-    // Show warning for Instagram URLs
+    // Handle Instagram URLs with alternative methods
     if (url.includes('instagram.com')) {
-      toast({
-        title: "Instagram Download Notice",
-        description: "Instagram downloads often fail due to login requirements. YouTube, TikTok, and other platforms work much better.",
-        variant: "destructive",
-      });
+      setShowAlternatives(true);
+      return;
     }
 
     addDownloadMutation.mutate({
@@ -71,7 +71,17 @@ export function DownloadForm() {
               <Badge variant="secondary" className="text-xs">✓ YouTube</Badge>
               <Badge variant="secondary" className="text-xs">✓ TikTok</Badge>
               <Badge variant="secondary" className="text-xs">✓ Twitter</Badge>
-              <Badge variant="outline" className="text-xs">⚠ Instagram (Limited)</Badge>
+              <Badge variant="secondary" className="text-xs">✓ Facebook</Badge>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Badge variant="outline" className="text-xs cursor-pointer hover:bg-modern-surface-alt">
+                    ❓ Instagram (Alternatives)
+                  </Badge>
+                </DialogTrigger>
+                <DialogContent className="max-w-3xl">
+                  <AlternativeMethods url={url} onClose={() => {}} />
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
           
@@ -164,6 +174,21 @@ export function DownloadForm() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Instagram Alternatives Modal */}
+      {showAlternatives && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="max-w-2xl w-full">
+            <AlternativeMethods 
+              url={url} 
+              onClose={() => {
+                setShowAlternatives(false);
+                setUrl("");
+              }} 
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

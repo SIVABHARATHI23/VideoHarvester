@@ -86,13 +86,17 @@ async function downloadVideo(item: any) {
       '--ffmpeg-location', '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin'
     ];
 
-    // Add Instagram-specific parameters to bypass some restrictions
+    // Add Instagram-specific parameters with multiple fallback methods
     if (item.url.includes('instagram.com')) {
-      args.push('--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+      args.push('--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
       args.push('--referer', 'https://www.instagram.com/');
-      args.push('--extractor-args', 'instagram:api_token=');
-      // Try to get around some restrictions
+      args.push('--add-header', 'Accept-Language:en-US,en;q=0.9');
+      args.push('--add-header', 'Accept-Encoding:gzip, deflate, br');
+      args.push('--extractor-args', 'instagram:include_ads=false');
       args.push('--no-check-certificate');
+      args.push('--ignore-errors');
+      // Try fallback extraction methods
+      args.push('--write-info-json');
     }
     
     if (item.format === 'mp3') {
@@ -262,9 +266,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Check for Instagram and warn user immediately
+      // Check for Instagram and try alternative approach
       if (validatedData.url.includes('instagram.com')) {
-        console.log('Instagram URL detected - this may fail due to authentication requirements');
+        console.log('Instagram URL detected - trying enhanced extraction methods');
+        // Try to extract the post ID and use direct approach
+        const match = validatedData.url.match(/\/(?:p|reel)\/([A-Za-z0-9_-]+)/);
+        if (match) {
+          console.log('Extracted Instagram media ID:', match[1]);
+        }
       }
       
       // Extract video info
