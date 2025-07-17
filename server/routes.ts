@@ -574,10 +574,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Serve video files
-  app.get("/api/video/:filename", async (req, res) => {
+  // Serve video files by download ID
+  app.get("/api/video-download/:id", async (req, res) => {
     try {
-      const { filename } = req.params;
+      const id = parseInt(req.params.id);
       const settings = await storage.getSettings();
       let videoPath = settings.downloadPath || "~/Downloads/Videos";
       
@@ -585,28 +585,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         videoPath = path.join(process.env.HOME || "/home/runner", videoPath.slice(2));
       }
       
-      // First try exact filename match
-      let fullPath = path.join(videoPath, filename);
+      // Find files with the download ID pattern
+      const files = await fs.promises.readdir(videoPath);
+      const matchingFile = files.find(file => 
+        file.includes(`_${id}.`) && 
+        (file.endsWith('.mp4') || file.endsWith('.mp3') || file.endsWith('.webm') || file.endsWith('.mkv'))
+      );
       
-      // If exact match doesn't exist, try to find a file with similar name
-      try {
-        await fs.promises.access(fullPath);
-      } catch {
-        // Try to find files in the directory that match the pattern
-        const files = await fs.promises.readdir(videoPath);
-        const decodedFilename = decodeURIComponent(filename);
-        
-        const matchingFile = files.find(file => 
-          file.includes(decodedFilename) || 
-          decodedFilename.includes(file.split('.')[0])
-        );
-        
-        if (matchingFile) {
-          fullPath = path.join(videoPath, matchingFile);
-        } else {
-          throw new Error('File not found');
-        }
+      if (!matchingFile) {
+        throw new Error('File not found');
       }
+      
+      const fullPath = path.join(videoPath, matchingFile);
       
       // Check if file exists
       await fs.promises.access(fullPath);
@@ -643,6 +633,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.writeHead(200, head);
         fs.createReadStream(fullPath).pipe(res);
       }
+    } catch (error) {
+      console.error('Video serving error:', error);
+      res.status(404).json({ message: "Video not found" });
+    }
+  });
+
+  // Serve video files for playing (streaming)
+  app.get("/api/video/:filename", async (req, res) => {
+    try {
+      const { filename } = req.params;
+      const settings = await storage.getSettings();
+      let videoPath = settings.downloadPath || "~/Downloads/Videos";
+      
+      if (videoPath.startsWith("~/")) {
+        videoPath = path.join(process.env.HOME || "/home/runner", videoPath.slice(2));
+      }
+      
+      // If filename is like "video_1.mp4", extract the ID
+      const idMatch = filename.match(/video_(\d+)\.mp4/);
+      if (idMatch) {
+        const id = parseInt(idMatch[1]);
+        const files = await fs.promises.readdir(videoPath);
+        const matchingFile = files.find(file => 
+          file.includes(`_${id}.`) && 
+          (file.endsWith('.mp4') || file.endsWith('.webm') || file.endsWith('.mkv'))
+        );
+        
+        if (matchingFile) {
+          const fullPath = path.join(videoPath, matchingFile);
+          await fs.promises.access(fullPath);
+          
+          const stat = await fs.promises.stat(fullPath);
+          const fileSize = stat.size;
+          const range = req.headers.range;
+          
+          const ext = path.extname(fullPath).toLowerCase();
+          const contentType = ext === '.webm' ? 'video/webm' : 
+                             ext === '.mkv' ? 'video/x-matroska' : 'video/mp4';
+          
+          if (range) {
+            const parts = range.replace(/bytes=/, "").split("-");
+            const start = parseInt(parts[0], 10);
+            const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+            const chunksize = (end - start) + 1;
+            const file = fs.createReadStream(fullPath, { start, end });
+            const head = {
+              'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+              'Accept-Ranges': 'bytes',
+              'Content-Length': chunksize,
+              'Content-Type': contentType,
+            };
+            res.writeHead(206, head);
+            file.pipe(res);
+          } else {
+            const head = {
+              'Content-Length': fileSize,
+              'Content-Type': contentType,
+            };
+            res.writeHead(200, head);
+            fs.createReadStream(fullPath).pipe(res);
+          }
+          return;
+        }
+      }
+      
+      throw new Error('File not found');
     } catch (error) {
       console.error('Video serving error:', error);
       res.status(404).json({ message: "Video not found" });

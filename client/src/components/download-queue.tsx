@@ -298,10 +298,12 @@ export function DownloadQueue() {
                             <Button 
                               size="sm"
                               onClick={() => {
-                                const fileName = `${download.title || 'video'}_${download.id}.mp4`;
+                                // Use the download ID to construct the filename
+                                const fileName = `video_${download.id}.mp4`;
                                 setSelectedVideo({
                                   title: download.title || 'Unknown Video',
-                                  fileName
+                                  fileName,
+                                  downloadId: download.id
                                 });
                               }}
                               className="bg-modern-primary hover:bg-modern-primary-dark text-white hover-lift px-3 py-2 h-auto animate-pulse-glow"
@@ -313,10 +315,10 @@ export function DownloadQueue() {
                             <Button 
                               size="sm"
                               onClick={() => {
-                                const fileName = `${download.title || 'video'}_${download.id}.mp4`;
+                                // Use the download ID to trigger the download
                                 const link = document.createElement('a');
-                                link.href = `/api/video/${encodeURIComponent(fileName)}`;
-                                link.download = fileName;
+                                link.href = `/api/video-download/${download.id}`;
+                                link.download = `${download.title || 'video'}.mp4`;
                                 link.click();
                               }}
                               className="bg-modern-accent hover:bg-modern-accent text-white hover-lift px-3 py-2 h-auto"
@@ -331,10 +333,10 @@ export function DownloadQueue() {
                           <Button 
                             size="sm"
                             onClick={() => {
-                              const fileName = `${download.title || 'audio'}_${download.id}.mp3`;
+                              // Use the download ID to trigger the download
                               const link = document.createElement('a');
-                              link.href = `/api/video/${encodeURIComponent(fileName)}`;
-                              link.download = fileName;
+                              link.href = `/api/video-download/${download.id}`;
+                              link.download = `${download.title || 'audio'}.mp3`;
                               link.click();
                             }}
                             className="bg-modern-accent hover:bg-modern-accent text-white hover-lift px-3 py-2 h-auto animate-pulse-glow"
