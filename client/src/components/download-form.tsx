@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Link, Plus, Play, Camera, Music, Video, HelpCircle, Zap, Star, Crown } from "lucide-react";
+import { Link, Plus, Play, Camera, Music, Video, HelpCircle, Zap, Star, Crown, Download } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { AlternativeMethods } from "./alternative-methods";
@@ -211,7 +211,7 @@ export function DownloadForm() {
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : (
                     <>
-                      <Plus className="w-5 h-5 mr-2" />
+                      <Download className="w-5 h-5 mr-2" />
                       Download
                     </>
                   )}

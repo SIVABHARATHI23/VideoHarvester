@@ -137,7 +137,7 @@ export function DownloadQueue() {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-gradient-modern rounded-lg">
-              <ListEnd className="w-6 h-6 text-white" />
+              <Download className="w-6 h-6 text-white" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-modern-text">Download Queue</h2>
@@ -176,7 +176,7 @@ export function DownloadQueue() {
         {downloads.length === 0 ? (
           <div className="glass-card border-0 p-12 text-center animate-slide-up">
             <div className="w-20 h-20 mx-auto mb-6 bg-gradient-modern rounded-full flex items-center justify-center">
-              <ListEnd className="w-10 h-10 text-white" />
+              <Download className="w-10 h-10 text-white" />
             </div>
             <h3 className="text-xl font-bold text-modern-text mb-2">No downloads yet</h3>
             <p className="text-modern-muted">Start by adding a video URL above to begin downloading!</p>
