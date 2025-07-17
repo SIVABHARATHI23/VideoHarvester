@@ -251,12 +251,16 @@ async function downloadVideo(item: any) {
         try {
           const files = await fs.promises.readdir(downloadPath);
           
-          // Find the newest video file created in the last 30 seconds
+          // Find the file that matches the expected filename pattern
+          const expectedFileName = `${item.title || 'video'}_${item.id}.${item.format === 'mp3' ? 'mp3' : 'mp4'}`;
+          
+          // Look for files with the item ID
           const now = Date.now();
-          const recentFiles = files
+          const matchingFiles = files
             .filter(file => 
               !file.startsWith('.') && 
-              (file.endsWith('.mp4') || file.endsWith('.mp3') || file.endsWith('.webm') || file.endsWith('.mkv'))
+              (file.endsWith('.mp4') || file.endsWith('.mp3') || file.endsWith('.webm') || file.endsWith('.mkv')) &&
+              file.includes(`_${item.id}.`)
             )
             .map(file => {
               const filePath = path.join(downloadPath, file);
@@ -267,10 +271,10 @@ async function downloadVideo(item: any) {
                 age: now - stats.mtime.getTime()
               };
             })
-            .filter(f => f.age < 30000) // Files created in last 30 seconds
+            .filter(f => f.age < 60000) // Files created in last 60 seconds
             .sort((a, b) => b.time - a.time);
           
-          const downloadedFile = recentFiles[0]?.file;
+          const downloadedFile = matchingFiles[0]?.file;
           
           const actualFilePath = downloadedFile ? path.join(downloadPath, downloadedFile) : null;
           let fileSize = "Unknown";
@@ -581,7 +585,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         videoPath = path.join(process.env.HOME || "/home/runner", videoPath.slice(2));
       }
       
-      const fullPath = path.join(videoPath, filename);
+      // First try exact filename match
+      let fullPath = path.join(videoPath, filename);
+      
+      // If exact match doesn't exist, try to find a file with similar name
+      try {
+        await fs.promises.access(fullPath);
+      } catch {
+        // Try to find files in the directory that match the pattern
+        const files = await fs.promises.readdir(videoPath);
+        const decodedFilename = decodeURIComponent(filename);
+        
+        const matchingFile = files.find(file => 
+          file.includes(decodedFilename) || 
+          decodedFilename.includes(file.split('.')[0])
+        );
+        
+        if (matchingFile) {
+          fullPath = path.join(videoPath, matchingFile);
+        } else {
+          throw new Error('File not found');
+        }
+      }
       
       // Check if file exists
       await fs.promises.access(fullPath);
@@ -589,6 +614,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const stat = await fs.promises.stat(fullPath);
       const fileSize = stat.size;
       const range = req.headers.range;
+      
+      // Determine content type based on file extension
+      const ext = path.extname(fullPath).toLowerCase();
+      const contentType = ext === '.mp3' ? 'audio/mpeg' : 
+                         ext === '.webm' ? 'video/webm' : 
+                         ext === '.mkv' ? 'video/x-matroska' : 'video/mp4';
       
       if (range) {
         const parts = range.replace(/bytes=/, "").split("-");
@@ -600,19 +631,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'Content-Range': `bytes ${start}-${end}/${fileSize}`,
           'Accept-Ranges': 'bytes',
           'Content-Length': chunksize,
-          'Content-Type': 'video/mp4',
+          'Content-Type': contentType,
         };
         res.writeHead(206, head);
         file.pipe(res);
       } else {
         const head = {
           'Content-Length': fileSize,
-          'Content-Type': 'video/mp4',
+          'Content-Type': contentType,
         };
         res.writeHead(200, head);
         fs.createReadStream(fullPath).pipe(res);
       }
     } catch (error) {
+      console.error('Video serving error:', error);
       res.status(404).json({ message: "Video not found" });
     }
   });
