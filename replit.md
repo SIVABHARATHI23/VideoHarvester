@@ -103,3 +103,11 @@ The application follows a modern full-stack architecture with clear separation o
 - **Improved Download File Handling**: Enhanced file path resolution and download directory management  
 - **Enhanced Error Handling**: Added comprehensive error logging and fallback mechanisms for downloads
 - **Updated Browserslist**: Fixed outdated caniuse-lite database warning
+- **Added Video Player**: Built-in video player with fullscreen, mute, and download controls
+- **Folder Browser**: Interactive folder selection for custom download locations
+- **MP3 Download Support**: Audio extraction with ffmpeg integration for MP3 downloads
+- **Enhanced Settings Panel**: Advanced options including auto-play, notifications, and concurrent downloads
+- **Quick Format Selection**: Easy toggle between video (MP4) and audio (MP3) formats
+- **Open Downloads Folder**: Direct access to download directory from the app
+- **Improved UI/UX**: Material Design enhancements with better visual feedback
+- **Enhanced Download Queue**: Play buttons for videos, download buttons for audio files

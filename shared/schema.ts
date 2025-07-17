@@ -24,6 +24,10 @@ export const downloadSettings = pgTable("download_settings", {
   quality: text("quality").default("720p"),
   format: text("format").default("mp4"),
   downloadPath: text("download_path").default("~/Downloads/Videos"),
+  autoPlay: boolean("auto_play").default(false),
+  theme: text("theme").default("light"),
+  notifications: boolean("notifications").default(true),
+  maxConcurrentDownloads: integer("max_concurrent_downloads").default(3),
 });
 
 export const insertDownloadItemSchema = createInsertSchema(downloadItems).omit({

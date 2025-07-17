@@ -1,17 +1,20 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { ListEnd, Play, CheckCircle, Clock, X, FolderOpen, Pause } from "lucide-react";
+import { ListEnd, Play, CheckCircle, Clock, X, FolderOpen, Pause, Download } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { VideoPlayer } from "@/components/video-player";
 import type { DownloadItem, WebSocketMessage } from "@shared/schema";
 
 export function DownloadQueue() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [selectedVideo, setSelectedVideo] = useState<{ title: string; fileName: string } | null>(null);
 
   const { data: downloads = [], isLoading } = useQuery<DownloadItem[]>({
     queryKey: ["/api/downloads"],
@@ -47,6 +50,19 @@ export function DownloadQueue() {
       toast({
         title: "Cleared",
         description: "Completed downloads have been cleared.",
+      });
+    },
+  });
+
+  const openFolderMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/open-folder");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Folder Opened",
+        description: data.message,
       });
     },
   });
@@ -199,12 +215,47 @@ export function DownloadQueue() {
                   <div className="flex space-x-1">
                     {download.status === "completed" && (
                       <>
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => openFolderMutation.mutate()}
+                          disabled={openFolderMutation.isPending}
+                          title="Open Downloads Folder"
+                        >
                           <FolderOpen className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="sm">
-                          <Play className="w-4 h-4" />
-                        </Button>
+                        {download.format !== "mp3" && download.filePath && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              const fileName = download.filePath?.split('/').pop() || download.title || 'video';
+                              setSelectedVideo({
+                                title: download.title || 'Unknown Video',
+                                fileName
+                              });
+                            }}
+                            title="Play Video"
+                          >
+                            <Play className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {download.format === "mp3" && download.filePath && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              const fileName = download.filePath?.split('/').pop() || download.title || 'audio';
+                              const link = document.createElement('a');
+                              link.href = `/api/video/${encodeURIComponent(fileName)}`;
+                              link.download = fileName;
+                              link.click();
+                            }}
+                            title="Download Audio"
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
+                        )}
                       </>
                     )}
                     {download.status === "downloading" && (
@@ -234,6 +285,16 @@ export function DownloadQueue() {
           </div>
         )}
       </CardContent>
+      
+      {/* Video Player Modal */}
+      {selectedVideo && (
+        <VideoPlayer
+          isOpen={!!selectedVideo}
+          onClose={() => setSelectedVideo(null)}
+          videoTitle={selectedVideo.title}
+          fileName={selectedVideo.fileName}
+        />
+      )}
     </Card>
   );
 }

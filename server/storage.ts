@@ -33,7 +33,11 @@ export class MemStorage implements IStorage {
       id: 1,
       quality: "720p",
       format: "mp4",
-      downloadPath: "~/Downloads/Videos"
+      downloadPath: "~/Downloads/Videos",
+      autoPlay: false,
+      theme: "light",
+      notifications: true,
+      maxConcurrentDownloads: 3
     };
   }
 

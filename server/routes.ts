@@ -66,7 +66,8 @@ async function downloadVideo(item: any) {
       '--format', item.format === 'mp3' ? 'bestaudio[ext=m4a]' : `best[height<=${(item.quality || '720p').replace('p', '')}]`,
       '--output', outputTemplate,
       '--progress',
-      '--newline'  // Better parsing of progress
+      '--newline',  // Better parsing of progress
+      '--ffmpeg-location', '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin'
     ];
     
     if (item.format === 'mp3') {
@@ -296,6 +297,117 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         res.status(500).json({ message: "Failed to update settings" });
       }
+    }
+  });
+
+  // Browse folders
+  app.get("/api/browse", async (req, res) => {
+    try {
+      const { path: requestedPath } = req.query;
+      let currentPath = requestedPath as string || process.env.HOME || "/home/runner";
+      
+      // Resolve home directory
+      if (currentPath.startsWith("~/")) {
+        currentPath = path.join(process.env.HOME || "/home/runner", currentPath.slice(2));
+      }
+      
+      const items = await fs.promises.readdir(currentPath, { withFileTypes: true });
+      const folders = items
+        .filter(item => item.isDirectory() && !item.name.startsWith('.'))
+        .map(item => ({
+          name: item.name,
+          path: path.join(currentPath, item.name),
+          type: 'folder'
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      
+      // Add parent directory option
+      const parentPath = path.dirname(currentPath);
+      if (parentPath !== currentPath) {
+        folders.unshift({
+          name: "..",
+          path: parentPath,
+          type: 'folder'
+        });
+      }
+      
+      res.json({
+        currentPath,
+        folders
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to browse folders" });
+    }
+  });
+
+  // Open downloads folder
+  app.post("/api/open-folder", async (req, res) => {
+    try {
+      const settings = await storage.getSettings();
+      let folderPath = settings.downloadPath || "~/Downloads/Videos";
+      
+      // Resolve home directory
+      if (folderPath.startsWith("~/")) {
+        folderPath = path.join(process.env.HOME || "/home/runner", folderPath.slice(2));
+      }
+      
+      // Ensure folder exists
+      await fs.promises.mkdir(folderPath, { recursive: true });
+      
+      res.json({ 
+        success: true, 
+        path: folderPath,
+        message: `Folder opened: ${folderPath}` 
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to open folder" });
+    }
+  });
+
+  // Serve video files
+  app.get("/api/video/:filename", async (req, res) => {
+    try {
+      const { filename } = req.params;
+      const settings = await storage.getSettings();
+      let videoPath = settings.downloadPath || "~/Downloads/Videos";
+      
+      if (videoPath.startsWith("~/")) {
+        videoPath = path.join(process.env.HOME || "/home/runner", videoPath.slice(2));
+      }
+      
+      const fullPath = path.join(videoPath, filename);
+      
+      // Check if file exists
+      await fs.promises.access(fullPath);
+      
+      const stat = await fs.promises.stat(fullPath);
+      const fileSize = stat.size;
+      const range = req.headers.range;
+      
+      if (range) {
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunksize = (end - start) + 1;
+        const file = fs.createReadStream(fullPath, { start, end });
+        const head = {
+          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': chunksize,
+          'Content-Type': 'video/mp4',
+        };
+        res.writeHead(206, head);
+        file.pipe(res);
+      } else {
+        const head = {
+          'Content-Length': fileSize,
+          'Content-Type': 'video/mp4',
+        };
+        res.writeHead(200, head);
+        fs.createReadStream(fullPath).pipe(res);
+      }
+    } catch (error) {
+      res.status(404).json({ message: "Video not found" });
     }
   });
 

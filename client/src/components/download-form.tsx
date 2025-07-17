@@ -11,6 +11,7 @@ import type { InsertDownloadItem } from "@shared/schema";
 
 export function DownloadForm() {
   const [url, setUrl] = useState("");
+  const [selectedFormat, setSelectedFormat] = useState<"mp4" | "mp3">("mp4");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -43,6 +44,8 @@ export function DownloadForm() {
     addDownloadMutation.mutate({
       url: url.trim(),
       status: "queued",
+      format: selectedFormat,
+      quality: selectedFormat === "mp3" ? null : "720p",
     });
   };
 
@@ -55,6 +58,37 @@ export function DownloadForm() {
         </h2>
         
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Format Selection Pills */}
+          <div className="flex items-center space-x-2 mb-4">
+            <span className="text-sm text-gray-600 font-medium">Format:</span>
+            <div className="flex bg-gray-100 rounded-lg p-1">
+              <button
+                type="button"
+                onClick={() => setSelectedFormat("mp4")}
+                className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  selectedFormat === "mp4"
+                    ? "bg-white text-material-blue shadow-sm"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                <Video className="w-4 h-4 mr-2" />
+                Video (MP4)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedFormat("mp3")}
+                className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  selectedFormat === "mp3"
+                    ? "bg-white text-material-blue shadow-sm"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                <Music className="w-4 h-4 mr-2" />
+                Audio (MP3)
+              </button>
+            </div>
+          </div>
+
           <div className="relative">
             <Input
               type="url"
@@ -68,7 +102,11 @@ export function DownloadForm() {
               disabled={!url.trim() || addDownloadMutation.isPending}
               className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-material-blue hover:bg-material-blue-dark"
             >
-              <Plus className="w-4 h-4 mr-1" />
+              {addDownloadMutation.isPending ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1" />
+              ) : (
+                <Plus className="w-4 h-4 mr-1" />
+              )}
               Add
             </Button>
           </div>
