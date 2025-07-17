@@ -112,21 +112,29 @@ async function downloadVideo(item: any) {
       console.log('Instagram-specific method failed, trying standard method...');
     }
     
+    // YouTube-specific configuration to bypass restrictions
+    const isYoutube = item.url.includes('youtube.com') || item.url.includes('youtu.be');
+    
     const args = [
-      '--format', item.format === 'mp3' ? 'bestaudio[ext=m4a]' : `best[height<=${(item.quality || '720p').replace('p', '')}]`,
+      '--format', item.format === 'mp3' ? 'bestaudio' : 'best',
+      '--merge-output-format', 'mp4',
       '--output', outputTemplate,
       '--progress',
       '--newline',
       '--no-playlist',
-      '--socket-timeout', '15',
-      '--retries', '3',
-      '--fragment-retries', '3',
+      '--socket-timeout', '30',
+      '--retries', '5',
+      '--fragment-retries', '5',
+      '--ignore-errors',
       '--ffmpeg-location', '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin'
     ];
 
-    // Enhanced Instagram extraction with multiple methods
-    if (item.url.includes('instagram.com')) {
-      // Method 1: Try with cookies simulation
+    if (isYoutube) {
+      // Use iOS client to bypass YouTube restrictions
+      args.push('--extractor-args', 'youtube:player_client=ios');
+      args.push('--user-agent', 'com.google.ios.youtube/19.29.1 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X; en_US)');
+    } else if (item.url.includes('instagram.com')) {
+      // Enhanced Instagram extraction with multiple methods
       args.push('--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1');
       args.push('--referer', 'https://www.instagram.com/');
       args.push('--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8');
@@ -149,6 +157,10 @@ async function downloadVideo(item: any) {
       // Alternative extraction methods
       args.push('--embed-subs');
       args.push('--write-thumbnail');
+    } else {
+      // Default settings for other platforms
+      args.push('--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      args.push('--add-header', 'Accept-Language:en-US,en;q=0.9');
     }
     
     if (item.format === 'mp3') {
