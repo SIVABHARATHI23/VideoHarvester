@@ -1,0 +1,48 @@
+import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
+
+export const downloadItems = pgTable("download_items", {
+  id: serial("id").primaryKey(),
+  url: text("url").notNull(),
+  title: text("title"),
+  platform: text("platform"),
+  status: text("status").notNull().default("queued"), // queued, downloading, completed, failed, cancelled
+  progress: integer("progress").default(0),
+  quality: text("quality").default("720p"),
+  format: text("format").default("mp4"),
+  fileSize: text("file_size"),
+  downloadSpeed: text("download_speed"),
+  estimatedTime: text("estimated_time"),
+  filePath: text("file_path"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const downloadSettings = pgTable("download_settings", {
+  id: serial("id").primaryKey(),
+  quality: text("quality").default("720p"),
+  format: text("format").default("mp4"),
+  downloadPath: text("download_path").default("~/Downloads/Videos"),
+});
+
+export const insertDownloadItemSchema = createInsertSchema(downloadItems).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertDownloadSettingsSchema = createInsertSchema(downloadSettings).omit({
+  id: true,
+});
+
+export type InsertDownloadItem = z.infer<typeof insertDownloadItemSchema>;
+export type DownloadItem = typeof downloadItems.$inferSelect;
+export type InsertDownloadSettings = z.infer<typeof insertDownloadSettingsSchema>;
+export type DownloadSettings = typeof downloadSettings.$inferSelect;
+
+// WebSocket message types
+export type WebSocketMessage = 
+  | { type: "download_progress"; id: number; progress: number; speed?: string; eta?: string }
+  | { type: "download_complete"; id: number; filePath: string; fileSize: string }
+  | { type: "download_error"; id: number; error: string }
+  | { type: "download_started"; id: number };

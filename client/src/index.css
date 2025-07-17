@@ -1,0 +1,155 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(20, 14.3%, 4.1%);
+  --muted: hsl(60, 4.8%, 95.9%);
+  --muted-foreground: hsl(25, 5.3%, 44.7%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(20, 14.3%, 4.1%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(20, 14.3%, 4.1%);
+  --border: hsl(20, 5.9%, 90%);
+  --input: hsl(20, 5.9%, 90%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(60, 4.8%, 95.9%);
+  --secondary-foreground: hsl(24, 9.8%, 10%);
+  --accent: hsl(60, 4.8%, 95.9%);
+  --accent-foreground: hsl(24, 9.8%, 10%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(60, 9.1%, 97.8%);
+  --ring: hsl(20, 14.3%, 4.1%);
+  --radius: 0.5rem;
+
+  /* Material Design Color Variables */
+  --material-blue: hsl(207, 85%, 43%);
+  --material-blue-dark: hsl(207, 85%, 38%);
+  --material-gray: hsl(0, 0%, 26%);
+  --material-gray-light: hsl(0, 0%, 46%);
+  --material-success: hsl(122, 39%, 49%);
+  --material-warning: hsl(36, 100%, 50%);
+  --material-error: hsl(4, 90%, 58%);
+  --material-bg: hsl(0, 0%, 98%);
+  --material-surface: hsl(0, 0%, 100%);
+}
+
+.dark {
+  --background: hsl(240, 10%, 3.9%);
+  --foreground: hsl(0, 0%, 98%);
+  --muted: hsl(240, 3.7%, 15.9%);
+  --muted-foreground: hsl(240, 5%, 64.9%);
+  --popover: hsl(240, 10%, 3.9%);
+  --popover-foreground: hsl(0, 0%, 98%);
+  --card: hsl(240, 10%, 3.9%);
+  --card-foreground: hsl(0, 0%, 98%);
+  --border: hsl(240, 3.7%, 15.9%);
+  --input: hsl(240, 3.7%, 15.9%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(240, 3.7%, 15.9%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --accent: hsl(240, 3.7%, 15.9%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(240, 4.9%, 83.9%);
+  --radius: 0.5rem;
+
+  /* Material Design Dark Mode Colors */
+  --material-blue: hsl(207, 85%, 55%);
+  --material-blue-dark: hsl(207, 85%, 45%);
+  --material-gray: hsl(0, 0%, 74%);
+  --material-gray-light: hsl(0, 0%, 54%);
+  --material-success: hsl(122, 39%, 59%);
+  --material-warning: hsl(36, 100%, 60%);
+  --material-error: hsl(4, 90%, 68%);
+  --material-bg: hsl(240, 10%, 3.9%);
+  --material-surface: hsl(240, 3.7%, 15.9%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .bg-material-blue {
+    background-color: var(--material-blue);
+  }
+  
+  .bg-material-blue-dark {
+    background-color: var(--material-blue-dark);
+  }
+  
+  .bg-material-gray {
+    background-color: var(--material-gray);
+  }
+  
+  .bg-material-gray-light {
+    background-color: var(--material-gray-light);
+  }
+  
+  .bg-material-success {
+    background-color: var(--material-success);
+  }
+  
+  .bg-material-warning {
+    background-color: var(--material-warning);
+  }
+  
+  .bg-material-error {
+    background-color: var(--material-error);
+  }
+  
+  .bg-material-bg {
+    background-color: var(--material-bg);
+  }
+  
+  .bg-material-surface {
+    background-color: var(--material-surface);
+  }
+  
+  .text-material-blue {
+    color: var(--material-blue);
+  }
+  
+  .text-material-blue-dark {
+    color: var(--material-blue-dark);
+  }
+  
+  .text-material-gray {
+    color: var(--material-gray);
+  }
+  
+  .text-material-gray-light {
+    color: var(--material-gray-light);
+  }
+  
+  .text-material-success {
+    color: var(--material-success);
+  }
+  
+  .text-material-warning {
+    color: var(--material-warning);
+  }
+  
+  .text-material-error {
+    color: var(--material-error);
+  }
+  
+  .border-material-blue {
+    border-color: var(--material-blue);
+  }
+  
+  .hover\:bg-material-blue-dark:hover {
+    background-color: var(--material-blue-dark);
+  }
+}
