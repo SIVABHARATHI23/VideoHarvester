@@ -50,93 +50,105 @@ export function DownloadForm() {
   };
 
   return (
-    <Card className="mb-6">
-      <CardContent className="pt-6">
-        <h2 className="text-xl font-medium text-gray-900 mb-4 flex items-center">
-          <Link className="mr-2 text-material-blue" />
-          Add Video URL
-        </h2>
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Format Selection Pills */}
-          <div className="flex items-center space-x-2 mb-4">
-            <span className="text-sm text-gray-600 font-medium">Format:</span>
-            <div className="flex bg-gray-100 rounded-lg p-1">
-              <button
-                type="button"
-                onClick={() => setSelectedFormat("mp4")}
-                className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  selectedFormat === "mp4"
-                    ? "bg-white text-material-blue shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                <Video className="w-4 h-4 mr-2" />
-                Video (MP4)
+    <div className="mb-8">
+      <Card className="glass-card animate-slide-up hover-lift border-0">
+        <CardContent className="pt-8 pb-8">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold bg-gradient-modern bg-clip-text text-transparent mb-2">
+              Universal Video Downloader
+            </h2>
+            <p className="text-modern-muted">Download videos and audio from 1000+ platforms</p>
+          </div>
+          
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Format Selection with Modern Pills */}
+            <div className="text-center">
+              <label className="text-sm font-semibold text-modern-muted mb-3 block">
+                Choose Format
+              </label>
+              <div className="inline-flex bg-modern-surface-alt rounded-xl p-1 border border-modern-border">
+                <button
+                  type="button"
+                  onClick={() => setSelectedFormat("mp4")}
+                  className={`flex items-center px-6 py-3 rounded-lg text-sm font-medium transition-all duration-300 ${
+                    selectedFormat === "mp4"
+                      ? "bg-modern-primary text-white shadow-lg transform scale-105"
+                      : "text-modern-text-muted hover:text-modern-primary hover:bg-white"
+                  }`}
+                >
+                  <Video className="w-5 h-5 mr-2" />
+                  Video (MP4)
               </button>
-              <button
-                type="button"
-                onClick={() => setSelectedFormat("mp3")}
-                className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  selectedFormat === "mp3"
-                    ? "bg-white text-material-blue shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                <Music className="w-4 h-4 mr-2" />
-                Audio (MP3)
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedFormat("mp3")}
+                  className={`flex items-center px-6 py-3 rounded-lg text-sm font-medium transition-all duration-300 ${
+                    selectedFormat === "mp3"
+                      ? "bg-modern-accent text-white shadow-lg transform scale-105"
+                      : "text-modern-text-muted hover:text-modern-accent hover:bg-white"
+                  }`}
+                >
+                  <Music className="w-5 h-5 mr-2" />
+                  Audio (MP3)
+                </button>
             </div>
           </div>
 
-          <div className="relative">
-            <Input
-              type="url"
-              placeholder="Paste video URL here (YouTube, Instagram, TikTok, etc.)"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              className="pr-20 py-3 border-2 focus:border-material-blue"
-            />
-            <Button
-              type="submit"
-              disabled={!url.trim() || addDownloadMutation.isPending}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-material-blue hover:bg-material-blue-dark"
-            >
-              {addDownloadMutation.isPending ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1" />
-              ) : (
-                <Plus className="w-4 h-4 mr-1" />
-              )}
-              Add
-            </Button>
-          </div>
-          
-          <div className="flex flex-wrap gap-2">
-            <span className="text-sm text-material-gray-light">Supported:</span>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary" className="bg-red-100 text-red-800">
-                <Play className="w-3 h-3 mr-1" />
-                YouTube
-              </Badge>
-              <Badge variant="secondary" className="bg-pink-100 text-pink-800">
-                <Camera className="w-3 h-3 mr-1" />
-                Instagram
-              </Badge>
-              <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                <Music className="w-3 h-3 mr-1" />
-                TikTok
-              </Badge>
-              <Badge variant="secondary" className="bg-purple-100 text-purple-800">
-                <Video className="w-3 h-3 mr-1" />
-                Vimeo
-              </Badge>
-              <Badge variant="secondary" className="bg-gray-100 text-gray-800">
-                +1000 more
-              </Badge>
+            {/* URL Input with Modern Design */}
+            <div className="relative group">
+              <div className="absolute inset-0 bg-gradient-modern rounded-xl blur opacity-20 group-hover:opacity-30 transition-opacity"></div>
+              <div className="relative">
+                <Input
+                  type="url"
+                  placeholder="🔗 Paste video URL from any platform..."
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  className="h-14 pr-20 text-base border-2 border-modern-border rounded-xl focus:border-modern-primary transition-all duration-300 bg-white/50 backdrop-blur-sm"
+                  required
+                />
+                <Button
+                  type="submit"
+                  disabled={addDownloadMutation.isPending}
+                  className="absolute right-2 top-2 bottom-2 px-6 bg-gradient-modern hover:shadow-lg text-white rounded-lg transition-all duration-300 transform hover:scale-105"
+                >
+                  {addDownloadMutation.isPending ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Plus className="w-5 h-5 mr-2" />
+                      Download
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+
+            {/* Platform Support with Animated Badges */}
+            <div className="text-center">
+              <p className="text-sm text-modern-muted mb-3">Supports 1000+ platforms including:</p>
+              <div className="flex flex-wrap justify-center gap-3">
+                <Badge className="bg-red-500 text-white px-3 py-1 rounded-full animate-float" style={{animationDelay: '0s'}}>
+                  <Camera className="w-4 h-4 mr-1" />
+                  YouTube
+                </Badge>
+                <Badge className="bg-purple-500 text-white px-3 py-1 rounded-full animate-float" style={{animationDelay: '0.5s'}}>
+                  <Play className="w-4 h-4 mr-1" />
+                  Instagram
+                </Badge>
+                <Badge className="bg-black text-white px-3 py-1 rounded-full animate-float" style={{animationDelay: '1s'}}>
+                  🎵 TikTok
+                </Badge>
+                <Badge className="bg-blue-500 text-white px-3 py-1 rounded-full animate-float" style={{animationDelay: '1.5s'}}>
+                  📺 Vimeo
+                </Badge>
+                <Badge className="bg-orange-500 text-white px-3 py-1 rounded-full animate-float" style={{animationDelay: '2s'}}>
+                  🚀 +996 more
+                </Badge>
+              </div>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
