@@ -21,7 +21,18 @@ function broadcastToClients(message: WebSocketMessage) {
 
 function extractVideoInfo(url: string): Promise<{ title: string; platform: string }> {
   return new Promise((resolve, reject) => {
-    const ytdlp = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', ['--print', 'title', '--print', 'extractor', url]);
+    const timeout = setTimeout(() => {
+      ytdlp.kill('SIGKILL');
+      reject(new Error('Video info extraction timeout (30s)'));
+    }, 30000); // 30 second timeout
+    
+    const ytdlp = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', [
+      '--print', 'title', 
+      '--print', 'extractor',
+      '--no-playlist',
+      '--socket-timeout', '10',
+      url
+    ]);
     
     let output = '';
     let error = '';
@@ -35,6 +46,7 @@ function extractVideoInfo(url: string): Promise<{ title: string; platform: strin
     });
     
     ytdlp.on('close', (code) => {
+      clearTimeout(timeout);
       if (code === 0) {
         const lines = output.trim().split('\n');
         const title = lines[0] || 'Unknown Title';
@@ -66,7 +78,11 @@ async function downloadVideo(item: any) {
       '--format', item.format === 'mp3' ? 'bestaudio[ext=m4a]' : `best[height<=${(item.quality || '720p').replace('p', '')}]`,
       '--output', outputTemplate,
       '--progress',
-      '--newline',  // Better parsing of progress
+      '--newline',
+      '--no-playlist',
+      '--socket-timeout', '15',
+      '--retries', '3',
+      '--fragment-retries', '3',
       '--ffmpeg-location', '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin'
     ];
     
@@ -78,6 +94,16 @@ async function downloadVideo(item: any) {
     
     console.log('Starting yt-dlp with args:', args);
     const ytdlp = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    
+    // Set timeout for download process (5 minutes max)
+    const downloadTimeout = setTimeout(() => {
+      console.log('Download timeout reached, killing process');
+      ytdlp.kill('SIGKILL');
+      storage.updateDownloadItem(item.id, { 
+        status: 'failed', 
+        errorMessage: 'Download timeout (5 minutes)' 
+      });
+    }, 300000); // 5 minutes
   
   ytdlp.stdout.on('data', (data) => {
     const output = data.toString();
@@ -119,6 +145,7 @@ async function downloadVideo(item: any) {
   });
   
   ytdlp.on('close', async (code) => {
+      clearTimeout(downloadTimeout);
       if (code === 0) {
         // Find the actual downloaded file
         try {
