@@ -10,6 +10,8 @@ import fs from "fs";
 import { extractInstagramInfo, downloadInstagramVideo } from "./instagram-extractor";
 import { extractInstagramVideo } from './instagram-advanced';
 import { downloadInstagramBypass } from './instagram-bypass';
+import { downloadInstagramFinal } from './instagram-solution';
+import { downloadInstagramWebScraper } from './instagram-webscraper';
 
 const clients = new Set<WebSocket>();
 
@@ -77,12 +79,12 @@ async function downloadVideo(item: any) {
     
     const outputTemplate = path.join(downloadPath, `%(title)s.%(ext)s`);
 
-    // Advanced Instagram bypass methods (like successful Instagram downloaders)
+    // Advanced Instagram solution (like successful Instagram downloaders)
     if (item.url.includes('instagram.com')) {
-      console.log('Using Instagram bypass methods...');
+      console.log('Using Instagram solution methods...');
       
       try {
-        const result = await downloadInstagramBypass(item.url, downloadPath, item.id);
+        const result = await downloadInstagramWebScraper(item.url, downloadPath, item.id);
         
         if (result.success && result.filePath) {
           const stats = await fs.promises.stat(result.filePath);
@@ -106,9 +108,9 @@ async function downloadVideo(item: any) {
           return;
         }
       } catch (error) {
-        console.log('Instagram bypass methods failed:', error);
+        console.log('Instagram web scraper methods failed:', error);
       }
-      console.log('Trying standard Instagram method...');
+      console.log('Trying fallback Instagram method...');
     }
 
     // YouTube Premium download support - removing restrictions
