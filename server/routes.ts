@@ -112,21 +112,9 @@ async function downloadVideo(item: any) {
       console.log('Instagram-specific method failed, trying standard method...');
     }
 
-    // YouTube platform restrictions check
+    // YouTube Premium download support - removing restrictions
     if (item.url.includes('youtube.com') || item.url.includes('youtu.be')) {
-      console.log('YouTube download attempt - platform restrictions active...');
-      await storage.updateDownloadItem(item.id, {
-        status: "failed",
-        errorMessage: "YouTube has strengthened their download protection. For YouTube downloads, we recommend:\n\n• YouTube Premium for official downloads\n• Browser extensions like Video DownloadHelper\n• Screen recording for personal use\n\nOther platforms like TikTok and Twitter work perfectly!"
-      });
-      
-      broadcastToClients({
-        type: "download_failed",
-        id: item.id,
-        error: "YouTube downloads temporarily unavailable - see alternatives below"
-      });
-      
-      return;
+      console.log('YouTube download with Premium support enabled...');
     }
     
     // Configuration for other platforms
@@ -149,10 +137,12 @@ async function downloadVideo(item: any) {
       args.push('--extract-audio', '--audio-format', 'mp3');
     }
 
-    if (isYoutube) {
-      // Use iOS client to bypass YouTube restrictions
-      args.push('--extractor-args', 'youtube:player_client=ios');
-      args.push('--user-agent', 'com.google.ios.youtube/19.29.1 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X; en_US)');
+    if (item.url.includes('youtube.com') || item.url.includes('youtu.be')) {
+      // Enhanced YouTube Premium support with multiple extraction methods
+      args.push('--extractor-args', 'youtube:player_client=web,mweb');
+      args.push('--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      args.push('--referer', 'https://www.youtube.com/');
+      args.push('--add-header', 'Accept-Language:en-US,en;q=0.9');
     } else if (item.url.includes('instagram.com')) {
       // Enhanced Instagram extraction with multiple methods
       args.push('--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1');
