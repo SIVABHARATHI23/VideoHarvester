@@ -235,6 +235,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertDownloadItemSchema.parse(req.body);
       
+      // Clean URL - remove playlist parameters that cause wrong video downloads
+      if (validatedData.url.includes('youtube.com') || validatedData.url.includes('youtu.be')) {
+        const url = new URL(validatedData.url);
+        // Keep only the video ID parameter, remove playlist and radio parameters
+        const videoId = url.searchParams.get('v');
+        if (videoId) {
+          validatedData.url = `https://www.youtube.com/watch?v=${videoId}`;
+          console.log('Cleaned YouTube URL:', validatedData.url);
+        }
+      }
+      
       // Extract video info
       try {
         const { title, platform } = await extractVideoInfo(validatedData.url);
