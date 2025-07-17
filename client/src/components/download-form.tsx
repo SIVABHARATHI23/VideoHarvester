@@ -44,10 +44,13 @@ export function DownloadForm() {
     e.preventDefault();
     if (!url.trim()) return;
 
-    // Handle Instagram URLs with alternative methods
+    // Try Instagram download with enhanced methods
     if (url.includes('instagram.com')) {
-      setShowAlternatives(true);
-      return;
+      toast({
+        title: "Instagram Download Starting",
+        description: "Using advanced extraction methods optimized for Instagram. This may take a moment...",
+        variant: "default",
+      });
     }
 
     addDownloadMutation.mutate({
@@ -64,10 +67,11 @@ export function DownloadForm() {
         <CardContent className="pt-8 pb-8">
           <div className="text-center mb-6">
             <h2 className="text-2xl font-bold bg-gradient-modern bg-clip-text text-transparent mb-2">
-              Universal Video Downloader
+              Instagram Video Downloader
             </h2>
-            <p className="text-modern-muted">Download videos and audio from 1000+ platforms</p>
+            <p className="text-modern-muted">Specialized for Instagram with advanced extraction methods</p>
             <div className="flex flex-wrap justify-center gap-2 mt-3">
+              <Badge variant="secondary" className="text-xs">🎯 Instagram (Primary Focus)</Badge>
               <Badge variant="secondary" className="text-xs">✓ YouTube</Badge>
               <Badge variant="secondary" className="text-xs">✓ TikTok</Badge>
               <Badge variant="secondary" className="text-xs">✓ Twitter</Badge>
@@ -75,7 +79,7 @@ export function DownloadForm() {
               <Dialog>
                 <DialogTrigger asChild>
                   <button className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 cursor-pointer hover:bg-modern-surface-alt">
-                    ❓ Instagram (Alternatives)
+                    💡 Need Help?
                   </button>
                 </DialogTrigger>
                 <DialogContent className="max-w-3xl">

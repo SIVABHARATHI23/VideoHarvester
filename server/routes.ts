@@ -7,6 +7,7 @@ import { insertDownloadItemSchema, insertDownloadSettingsSchema, type WebSocketM
 import { z } from "zod";
 import path from "path";
 import fs from "fs";
+import { extractInstagramInfo, downloadInstagramVideo } from "./instagram-extractor";
 
 const clients = new Set<WebSocket>();
 
@@ -73,6 +74,43 @@ async function downloadVideo(item: any) {
     await fs.promises.mkdir(downloadPath, { recursive: true });
     
     const outputTemplate = path.join(downloadPath, `%(title)s.%(ext)s`);
+
+    // Try Instagram-specific download method first
+    if (item.url.includes('instagram.com')) {
+      console.log('Using Instagram-specific download method...');
+      const success = await downloadInstagramVideo(item, outputTemplate);
+      if (success) {
+        // Find downloaded file and update status
+        const files = await fs.promises.readdir(downloadPath);
+        const downloadedFile = files.find(file => 
+          (file.endsWith('.mp4') || file.endsWith('.mp3') || file.endsWith('.webm'))
+        );
+        
+        if (downloadedFile) {
+          const actualFilePath = path.join(downloadPath, downloadedFile);
+          const stats = await fs.promises.stat(actualFilePath);
+          const fileSize = `${(stats.size / (1024 * 1024)).toFixed(2)} MB`;
+          
+          await storage.updateDownloadItem(item.id, { 
+            status: "completed", 
+            progress: 100,
+            filePath: actualFilePath,
+            fileSize
+          });
+          
+          broadcastToClients({
+            type: "download_complete",
+            id: item.id,
+            filePath: actualFilePath,
+            fileSize
+          });
+          
+          console.log(`Instagram download completed: ${actualFilePath}`);
+          return;
+        }
+      }
+      console.log('Instagram-specific method failed, trying standard method...');
+    }
     
     const args = [
       '--format', item.format === 'mp3' ? 'bestaudio[ext=m4a]' : `best[height<=${(item.quality || '720p').replace('p', '')}]`,
@@ -86,17 +124,31 @@ async function downloadVideo(item: any) {
       '--ffmpeg-location', '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin'
     ];
 
-    // Add Instagram-specific parameters with multiple fallback methods
+    // Enhanced Instagram extraction with multiple methods
     if (item.url.includes('instagram.com')) {
-      args.push('--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      // Method 1: Try with cookies simulation
+      args.push('--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1');
       args.push('--referer', 'https://www.instagram.com/');
-      args.push('--add-header', 'Accept-Language:en-US,en;q=0.9');
+      args.push('--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8');
+      args.push('--add-header', 'Accept-Language:en-US,en;q=0.5');
       args.push('--add-header', 'Accept-Encoding:gzip, deflate, br');
+      args.push('--add-header', 'DNT:1');
+      args.push('--add-header', 'Connection:keep-alive');
+      args.push('--add-header', 'Upgrade-Insecure-Requests:1');
+      
+      // Instagram-specific extractors
+      args.push('--extractor-args', 'instagram:api_token=');
       args.push('--extractor-args', 'instagram:include_ads=false');
+      args.push('--extractor-args', 'instagram:lang=en');
+      
+      // Bypass restrictions
       args.push('--no-check-certificate');
       args.push('--ignore-errors');
-      // Try fallback extraction methods
-      args.push('--write-info-json');
+      args.push('--no-warnings');
+      
+      // Alternative extraction methods
+      args.push('--embed-subs');
+      args.push('--write-thumbnail');
     }
     
     if (item.format === 'mp3') {
@@ -266,24 +318,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Check for Instagram and try alternative approach
+      // Enhanced Instagram handling with multiple fallback URLs
       if (validatedData.url.includes('instagram.com')) {
-        console.log('Instagram URL detected - trying enhanced extraction methods');
-        // Try to extract the post ID and use direct approach
+        console.log('Instagram URL detected - applying advanced extraction methods');
+        
+        // Extract media ID and try multiple URL formats
         const match = validatedData.url.match(/\/(?:p|reel)\/([A-Za-z0-9_-]+)/);
         if (match) {
-          console.log('Extracted Instagram media ID:', match[1]);
+          const mediaId = match[1];
+          console.log('Extracted Instagram media ID:', mediaId);
+          
+          // Try direct reel URL format first (often works better)
+          if (validatedData.url.includes('/reel/')) {
+            validatedData.url = `https://www.instagram.com/reel/${mediaId}/`;
+          } else {
+            // Try as post
+            validatedData.url = `https://www.instagram.com/p/${mediaId}/`;
+          }
+          console.log('Cleaned Instagram URL:', validatedData.url);
         }
       }
       
-      // Extract video info
+      // Extract video info with Instagram-specific handling
       try {
-        const { title, platform } = await extractVideoInfo(validatedData.url);
-        validatedData.title = title;
-        validatedData.platform = platform;
+        if (validatedData.url.includes('instagram.com')) {
+          const result = await extractInstagramInfo(validatedData.url);
+          validatedData.title = result.title;
+          validatedData.platform = result.platform;
+          if (!result.success) {
+            console.warn('Instagram extraction returned no success flag');
+          }
+        } else {
+          const { title, platform } = await extractVideoInfo(validatedData.url);
+          validatedData.title = title;
+          validatedData.platform = platform;
+        }
       } catch (error) {
         // If info extraction fails, continue with provided data
         console.warn('Failed to extract video info:', error);
+        if (validatedData.url.includes('instagram.com')) {
+          validatedData.title = 'Instagram Media';
+          validatedData.platform = 'instagram';
+        }
       }
       
       const item = await storage.createDownloadItem(validatedData);

@@ -1,8 +1,8 @@
-# Universal Video Downloader
+# Instagram Video Downloader (Universal Support)
 
 ## Overview
 
-This is a full-stack video downloader application built with React, Express, and PostgreSQL. The application allows users to download videos from various platforms by providing URLs, managing download queues, and configuring download settings. It features real-time updates through WebSocket connections and a modern Material Design-inspired UI.
+This is a full-stack video downloader application built with React, Express, and PostgreSQL with a primary focus on Instagram downloads. The application specializes in Instagram video extraction using advanced methods including multiple fallback techniques, mobile user agents, and embed extraction. It also supports YouTube, TikTok, Twitter, and other platforms. Features real-time updates through WebSocket connections and a modern blue gradient UI.
 
 ## User Preferences
 
@@ -99,13 +99,15 @@ The application follows a modern full-stack architecture with clear separation o
 ## Recent Changes
 
 ### July 17, 2025
+- **Advanced Instagram Extraction System**: Implemented specialized Instagram extractor with multiple fallback methods
+- **Instagram-Specific Download Methods**: Added mobile user agents, embed extraction, and alternative URL formats
+- **Enhanced UI for Instagram Focus**: Changed title to "Instagram Video Downloader" with Instagram as primary focus
+- **Multiple Instagram Extraction Attempts**: Try yt-dlp extraction, mobile approach, and embed methods automatically
+- **Instagram URL Cleaning**: Clean Instagram URLs to proper reel/post format for better success rates
 - **Fixed Critical Download Performance Issues**: Killed stuck yt-dlp processes and added 30s timeout for video info extraction, 5-minute download timeout
 - **Fixed Wrong Video Download Bug**: Added URL cleaning for YouTube links to remove playlist parameters that caused downloading wrong videos  
 - **Beautiful Blue Gradient Theme**: Implemented stunning blue header design with proper contrast and modern styling
-- **Instagram Download Limitations**: Added clear warnings and error handling for Instagram content due to platform's strict anti-bot protection
-- **Platform Compatibility Badges**: Shows supported platforms (YouTube ✓, TikTok ✓, Twitter ✓, Instagram ⚠ Limited)
+- **Platform Compatibility Badges**: Shows supported platforms with Instagram as primary focus
 - **Enhanced Error Messages**: Helpful feedback for platform-specific issues and timeout scenarios
 - **Improved Download Speed**: Downloads now complete in 5-7 seconds instead of 3+ minutes
 - **Robust Timeout System**: Prevents hanging downloads with automatic process cleanup
-- **URL Parameter Cleaning**: Ensures exact video downloads by removing playlist/radio parameters
-- **User-Friendly Warnings**: Proactive notifications about platform limitations before downloads fail
