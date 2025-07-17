@@ -8,6 +8,7 @@ import { z } from "zod";
 import path from "path";
 import fs from "fs";
 import { extractInstagramInfo, downloadInstagramVideo } from "./instagram-extractor";
+import { extractInstagramVideo } from './instagram-advanced';
 
 const clients = new Set<WebSocket>();
 
@@ -75,41 +76,38 @@ async function downloadVideo(item: any) {
     
     const outputTemplate = path.join(downloadPath, `%(title)s.%(ext)s`);
 
-    // Try Instagram-specific download method first
+    // Advanced Instagram extraction with multiple bypass methods
     if (item.url.includes('instagram.com')) {
-      console.log('Using Instagram-specific download method...');
-      const success = await downloadInstagramVideo(item, outputTemplate);
-      if (success) {
-        // Find downloaded file and update status
-        const files = await fs.promises.readdir(downloadPath);
-        const downloadedFile = files.find(file => 
-          (file.endsWith('.mp4') || file.endsWith('.mp3') || file.endsWith('.webm'))
-        );
+      console.log('Using advanced Instagram extraction methods...');
+      
+      try {
+        const result = await extractInstagramVideo(item.url, downloadPath, item.id);
         
-        if (downloadedFile) {
-          const actualFilePath = path.join(downloadPath, downloadedFile);
-          const stats = await fs.promises.stat(actualFilePath);
+        if (result.success && result.filePath) {
+          const stats = await fs.promises.stat(result.filePath);
           const fileSize = `${(stats.size / (1024 * 1024)).toFixed(2)} MB`;
           
           await storage.updateDownloadItem(item.id, { 
             status: "completed", 
             progress: 100,
-            filePath: actualFilePath,
+            filePath: result.filePath,
             fileSize
           });
           
           broadcastToClients({
             type: "download_complete",
             id: item.id,
-            filePath: actualFilePath,
+            filePath: result.filePath,
             fileSize
           });
           
-          console.log(`Instagram download completed: ${actualFilePath}`);
+          console.log(`Instagram download completed: ${result.filePath}`);
           return;
         }
+      } catch (error) {
+        console.log('Advanced Instagram extraction failed:', error);
       }
-      console.log('Instagram-specific method failed, trying standard method...');
+      console.log('Trying legacy Instagram method...');
     }
 
     // YouTube Premium download support - removing restrictions
