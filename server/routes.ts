@@ -48,22 +48,35 @@ function extractVideoInfo(url: string): Promise<{ title: string; platform: strin
 }
 
 async function downloadVideo(item: any) {
-  const settings = await storage.getSettings();
-  const outputPath = path.join(settings.downloadPath || "~/Downloads/Videos", `%(title)s.%(ext)s`);
-  
-  const args = [
-    '--format', item.format === 'mp3' ? 'bestaudio[ext=m4a]' : `best[height<=${(item.quality || '720p').replace('p', '')}]`,
-    '--output', outputPath,
-    '--progress'
-  ];
-  
-  if (item.format === 'mp3') {
-    args.push('--extract-audio', '--audio-format', 'mp3');
-  }
-  
-  args.push(item.url);
-  
-  const ytdlp = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+  try {
+    const settings = await storage.getSettings();
+    
+    // Resolve the download path properly
+    let downloadPath = settings.downloadPath || "~/Downloads/Videos";
+    if (downloadPath.startsWith("~/")) {
+      downloadPath = path.join(process.env.HOME || "/home/runner", downloadPath.slice(2));
+    }
+    
+    // Ensure download directory exists
+    await fs.promises.mkdir(downloadPath, { recursive: true });
+    
+    const outputTemplate = path.join(downloadPath, `%(title)s.%(ext)s`);
+    
+    const args = [
+      '--format', item.format === 'mp3' ? 'bestaudio[ext=m4a]' : `best[height<=${(item.quality || '720p').replace('p', '')}]`,
+      '--output', outputTemplate,
+      '--progress',
+      '--newline'  // Better parsing of progress
+    ];
+    
+    if (item.format === 'mp3') {
+      args.push('--extract-audio', '--audio-format', 'mp3');
+    }
+    
+    args.push(item.url);
+    
+    console.log('Starting yt-dlp with args:', args);
+    const ytdlp = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
   
   ytdlp.stdout.on('data', (data) => {
     const output = data.toString();
@@ -104,31 +117,78 @@ async function downloadVideo(item: any) {
     console.error('yt-dlp error:', data.toString());
   });
   
-  ytdlp.on('close', (code) => {
-    if (code === 0) {
-      storage.updateDownloadItem(item.id, { 
-        status: "completed", 
-        progress: 100,
-        filePath: outputPath
-      });
-      broadcastToClients({
-        type: "download_complete",
-        id: item.id,
-        filePath: outputPath,
-        fileSize: "Unknown"
-      });
-    } else {
-      storage.updateDownloadItem(item.id, { 
-        status: "failed",
-        errorMessage: "Download failed"
-      });
-      broadcastToClients({
-        type: "download_error",
-        id: item.id,
-        error: "Download failed"
-      });
-    }
-  });
+  ytdlp.on('close', async (code) => {
+      if (code === 0) {
+        // Find the actual downloaded file
+        try {
+          const files = await fs.promises.readdir(downloadPath);
+          const downloadedFile = files.find(file => 
+            !file.startsWith('.') && 
+            (file.endsWith('.mp4') || file.endsWith('.mp3') || file.endsWith('.webm') || file.endsWith('.mkv'))
+          );
+          
+          const actualFilePath = downloadedFile ? path.join(downloadPath, downloadedFile) : null;
+          let fileSize = "Unknown";
+          
+          if (actualFilePath && await fs.promises.access(actualFilePath).then(() => true).catch(() => false)) {
+            const stats = await fs.promises.stat(actualFilePath);
+            fileSize = `${(stats.size / (1024 * 1024)).toFixed(2)} MB`;
+          }
+          
+          await storage.updateDownloadItem(item.id, { 
+            status: "completed", 
+            progress: 100,
+            filePath: actualFilePath,
+            fileSize
+          });
+          
+          broadcastToClients({
+            type: "download_complete",
+            id: item.id,
+            filePath: actualFilePath || outputTemplate,
+            fileSize
+          });
+          
+          console.log(`Download completed: ${actualFilePath}`);
+        } catch (error) {
+          console.error('Error finding downloaded file:', error);
+          await storage.updateDownloadItem(item.id, { 
+            status: "completed", 
+            progress: 100,
+            filePath: outputTemplate
+          });
+          broadcastToClients({
+            type: "download_complete",
+            id: item.id,
+            filePath: outputTemplate,
+            fileSize: "Unknown"
+          });
+        }
+      } else {
+        await storage.updateDownloadItem(item.id, { 
+          status: "failed",
+          errorMessage: `Download failed with exit code ${code}`
+        });
+        broadcastToClients({
+          type: "download_error",
+          id: item.id,
+          error: `Download failed with exit code ${code}`
+        });
+        console.log(`Download failed for item ${item.id} with exit code ${code}`);
+      }
+    });
+  } catch (error) {
+    console.error('Error in downloadVideo:', error);
+    await storage.updateDownloadItem(item.id, { 
+      status: "failed",
+      errorMessage: error.message || "Unknown error"
+    });
+    broadcastToClients({
+      type: "download_error",
+      id: item.id,
+      error: error.message || "Unknown error"
+    });
+  }
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
