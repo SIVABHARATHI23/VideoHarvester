@@ -262,7 +262,7 @@ async function downloadVideo(item: any) {
         
         // Provide helpful error messages for common issues
         if (item.url.includes('instagram.com')) {
-          errorMessage = 'Instagram download failed. This content may be private, age-restricted, or Instagram is blocking downloads. Try a different Instagram post or use a public video.';
+          errorMessage = 'Instagram requires authentication for downloads. Instagram blocks automated tools to protect user privacy. Please use the manual alternatives provided in the "Need Help?" section above.';
         }
         
         await storage.updateDownloadItem(item.id, { 

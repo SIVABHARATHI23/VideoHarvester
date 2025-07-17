@@ -44,11 +44,11 @@ export function DownloadForm() {
     e.preventDefault();
     if (!url.trim()) return;
 
-    // Try Instagram download with enhanced methods
+    // Show Instagram warning before attempting download
     if (url.includes('instagram.com')) {
       toast({
-        title: "Instagram Download Starting",
-        description: "Using advanced extraction methods optimized for Instagram. This may take a moment...",
+        title: "Instagram Authentication Required",
+        description: "Instagram blocks automated downloads. Trying advanced methods, but manual alternatives may be needed.",
         variant: "default",
       });
     }

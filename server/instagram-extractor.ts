@@ -11,28 +11,44 @@ interface InstagramMediaInfo {
 export async function extractInstagramInfo(url: string): Promise<InstagramMediaInfo> {
   console.log('Attempting Instagram extraction with multiple methods...');
   
-  // Method 1: Try with updated yt-dlp and specific Instagram parameters
+  // Method 1: Try with browser cookies simulation
+  try {
+    const result = await tryWithBrowserCookies(url);
+    if (result.success) return result;
+  } catch (error) {
+    console.log('Browser cookies method failed:', error.message);
+  }
+
+  // Method 2: Try with updated yt-dlp and specific Instagram parameters
   try {
     const result = await tryYtDlpExtraction(url);
     if (result.success) return result;
   } catch (error) {
-    console.log('Method 1 failed:', error.message);
+    console.log('Standard yt-dlp method failed:', error.message);
   }
 
-  // Method 2: Try mobile user agent approach
+  // Method 3: Try mobile user agent approach
   try {
     const result = await tryMobileExtraction(url);
     if (result.success) return result;
   } catch (error) {
-    console.log('Method 2 failed:', error.message);
+    console.log('Mobile extraction failed:', error.message);
   }
 
-  // Method 3: Try embed approach
+  // Method 4: Try embed approach
   try {
     const result = await tryEmbedExtraction(url);
     if (result.success) return result;
   } catch (error) {
-    console.log('Method 3 failed:', error.message);
+    console.log('Embed extraction failed:', error.message);
+  }
+
+  // Method 5: Try with gallery-dl as fallback
+  try {
+    const result = await tryGalleryDlExtraction(url);
+    if (result.success) return result;
+  } catch (error) {
+    console.log('Gallery-dl method failed:', error.message);
   }
 
   return {
@@ -40,6 +56,53 @@ export async function extractInstagramInfo(url: string): Promise<InstagramMediaI
     platform: 'instagram',
     success: false
   };
+}
+
+async function tryWithBrowserCookies(url: string): Promise<InstagramMediaInfo> {
+  return new Promise((resolve, reject) => {
+    const args = [
+      '--print', 'title',
+      '--cookies-from-browser', 'chrome',
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      '--referer', 'https://www.instagram.com/',
+      '--extractor-args', 'instagram:lang=en',
+      '--no-check-certificate',
+      '--ignore-errors',
+      url
+    ];
+
+    const process = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    
+    let output = '';
+    let error = '';
+    
+    const timeout = setTimeout(() => {
+      process.kill('SIGKILL');
+      reject(new Error('Browser cookies extraction timeout'));
+    }, 20000);
+    
+    process.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+    
+    process.stderr.on('data', (data) => {
+      error += data.toString();
+    });
+    
+    process.on('close', (code) => {
+      clearTimeout(timeout);
+      if (code === 0 && output.trim()) {
+        const lines = output.trim().split('\n');
+        resolve({
+          title: lines[0] || 'Instagram Media',
+          platform: 'instagram',
+          success: true
+        });
+      } else {
+        reject(new Error(error || 'Browser cookies extraction failed'));
+      }
+    });
+  });
 }
 
 async function tryYtDlpExtraction(url: string): Promise<InstagramMediaInfo> {
@@ -177,10 +240,59 @@ async function tryEmbedExtraction(url: string): Promise<InstagramMediaInfo> {
   });
 }
 
+async function tryGalleryDlExtraction(url: string): Promise<InstagramMediaInfo> {
+  return new Promise((resolve, reject) => {
+    // Try alternative extraction with different parameters
+    const args = [
+      '--print', 'title',
+      '--extractor-args', 'instagram:include_reels=true',
+      '--extractor-args', 'instagram:include_stories=false', 
+      '--user-agent', 'Instagram 242.0.0.13.112 Android (23/6.0.1; 480dpi; 1080x1920; samsung; SM-G935F; hero2lte; samsungexynos8890; en_US; 146536611)',
+      '--no-warnings',
+      '--ignore-errors',
+      url
+    ];
+
+    const process = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    
+    let output = '';
+    
+    const timeout = setTimeout(() => {
+      process.kill('SIGKILL');
+      reject(new Error('Alternative extraction timeout'));
+    }, 15000);
+    
+    process.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+    
+    process.on('close', (code) => {
+      clearTimeout(timeout);
+      if (code === 0 && output.trim()) {
+        resolve({
+          title: output.trim() || 'Instagram Media',
+          platform: 'instagram',
+          success: true
+        });
+      } else {
+        reject(new Error('Alternative extraction failed'));
+      }
+    });
+  });
+}
+
 export async function downloadInstagramVideo(item: any, outputPath: string): Promise<boolean> {
   console.log('Starting Instagram download with advanced methods...');
   
-  // Method 1: Standard extraction with enhanced parameters
+  // Method 1: Try with browser cookies if available
+  try {
+    const result = await tryBrowserCookiesDownload(item, outputPath);
+    if (result) return true;
+  } catch (error) {
+    console.log('Browser cookies download failed:', error.message);
+  }
+
+  // Method 2: Standard extraction with enhanced parameters
   try {
     const result = await tryAdvancedDownload(item, outputPath);
     if (result) return true;
@@ -188,7 +300,7 @@ export async function downloadInstagramVideo(item: any, outputPath: string): Pro
     console.log('Advanced download method failed:', error.message);
   }
 
-  // Method 2: Try with different format selection
+  // Method 3: Try with different format selection
   try {
     const result = await tryFormatSpecificDownload(item, outputPath);
     if (result) return true;
@@ -197,6 +309,36 @@ export async function downloadInstagramVideo(item: any, outputPath: string): Pro
   }
 
   return false;
+}
+
+async function tryBrowserCookiesDownload(item: any, outputPath: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const args = [
+      '--format', 'best[height<=720]/mp4',
+      '--output', outputPath,
+      '--cookies-from-browser', 'chrome',
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      '--referer', 'https://www.instagram.com/',
+      '--extractor-args', 'instagram:lang=en',
+      '--no-check-certificate',
+      '--ignore-errors',
+      '--socket-timeout', '20',
+      '--retries', '3',
+      item.url
+    ];
+
+    const process = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    
+    const timeout = setTimeout(() => {
+      process.kill('SIGKILL');
+      resolve(false);
+    }, 90000); // 1.5 minute timeout
+    
+    process.on('close', (code) => {
+      clearTimeout(timeout);
+      resolve(code === 0);
+    });
+  });
 }
 
 async function tryAdvancedDownload(item: any, outputPath: string): Promise<boolean> {
