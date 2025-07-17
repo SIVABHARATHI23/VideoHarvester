@@ -287,57 +287,61 @@ export function DownloadQueue() {
                           size="sm"
                           onClick={() => openFolderMutation.mutate()}
                           disabled={openFolderMutation.isPending}
-                          className="glass-button hover-lift p-2 h-auto"
+                          className="glass-button hover-lift px-3 py-2 h-auto"
                           title="Open Downloads Folder"
                         >
-                          <FolderOpen className="w-4 h-4 text-modern-primary" />
+                          <FolderOpen className="w-4 h-4 mr-2 text-modern-primary" />
+                          <span className="text-xs">Folder</span>
                         </Button>
-                        {download.format !== "mp3" && download.filePath && (
+                        {download.format !== "mp3" && (
                           <>
                             <Button 
                               size="sm"
                               onClick={() => {
-                                const fileName = download.filePath?.split('/').pop() || download.title || 'video';
+                                const fileName = `${download.title || 'video'}_${download.id}.mp4`;
                                 setSelectedVideo({
                                   title: download.title || 'Unknown Video',
                                   fileName
                                 });
                               }}
-                              className="bg-modern-primary hover:bg-modern-primary-dark text-white hover-lift p-2 h-auto animate-pulse-glow"
+                              className="bg-modern-primary hover:bg-modern-primary-dark text-white hover-lift px-3 py-2 h-auto animate-pulse-glow"
                               title="Play Video"
                             >
-                              <Play className="w-4 h-4" />
+                              <Play className="w-4 h-4 mr-2" />
+                              <span className="text-xs">Play</span>
                             </Button>
                             <Button 
                               size="sm"
                               onClick={() => {
-                                const fileName = download.filePath?.split('/').pop() || download.title || 'video';
+                                const fileName = `${download.title || 'video'}_${download.id}.mp4`;
                                 const link = document.createElement('a');
                                 link.href = `/api/video/${encodeURIComponent(fileName)}`;
                                 link.download = fileName;
                                 link.click();
                               }}
-                              className="bg-modern-accent hover:bg-modern-accent text-white hover-lift p-2 h-auto"
+                              className="bg-modern-accent hover:bg-modern-accent text-white hover-lift px-3 py-2 h-auto"
                               title="Download Video File"
                             >
-                              <Download className="w-4 h-4" />
+                              <Download className="w-4 h-4 mr-2" />
+                              <span className="text-xs">Download</span>
                             </Button>
                           </>
                         )}
-                        {download.format === "mp3" && download.filePath && (
+                        {download.format === "mp3" && (
                           <Button 
                             size="sm"
                             onClick={() => {
-                              const fileName = download.filePath?.split('/').pop() || download.title || 'audio';
+                              const fileName = `${download.title || 'audio'}_${download.id}.mp3`;
                               const link = document.createElement('a');
                               link.href = `/api/video/${encodeURIComponent(fileName)}`;
                               link.download = fileName;
                               link.click();
                             }}
-                            className="bg-modern-accent hover:bg-modern-accent text-white hover-lift p-2 h-auto animate-pulse-glow"
+                            className="bg-modern-accent hover:bg-modern-accent text-white hover-lift px-3 py-2 h-auto animate-pulse-glow"
                             title="Download Audio File"
                           >
-                            <Download className="w-4 h-4" />
+                            <Download className="w-4 h-4 mr-2" />
+                            <span className="text-xs">Download</span>
                           </Button>
                         )}
                       </>
