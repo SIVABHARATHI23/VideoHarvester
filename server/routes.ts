@@ -21,7 +21,7 @@ function broadcastToClients(message: WebSocketMessage) {
 
 function extractVideoInfo(url: string): Promise<{ title: string; platform: string }> {
   return new Promise((resolve, reject) => {
-    const ytdlp = spawn('yt-dlp', ['--print', 'title', '--print', 'extractor', url]);
+    const ytdlp = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', ['--print', 'title', '--print', 'extractor', url]);
     
     let output = '';
     let error = '';
@@ -49,7 +49,7 @@ function extractVideoInfo(url: string): Promise<{ title: string; platform: strin
 
 async function downloadVideo(item: any) {
   const settings = await storage.getSettings();
-  const outputPath = path.join(settings.downloadPath, `%(title)s.%(ext)s`);
+  const outputPath = path.join(settings.downloadPath || "~/Downloads/Videos", `%(title)s.%(ext)s`);
   
   const args = [
     '--format', item.format === 'mp3' ? 'bestaudio[ext=m4a]' : `best[height<=${item.quality.replace('p', '')}]`,
@@ -63,7 +63,7 @@ async function downloadVideo(item: any) {
   
   args.push(item.url);
   
-  const ytdlp = spawn('yt-dlp', args);
+  const ytdlp = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
   
   ytdlp.stdout.on('data', (data) => {
     const output = data.toString();

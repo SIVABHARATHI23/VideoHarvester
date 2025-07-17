@@ -50,7 +50,18 @@ export class MemStorage implements IStorage {
   async createDownloadItem(insertItem: InsertDownloadItem): Promise<DownloadItem> {
     const id = this.currentId++;
     const item: DownloadItem = { 
-      ...insertItem, 
+      url: insertItem.url,
+      title: insertItem.title ?? null,
+      platform: insertItem.platform ?? null,
+      status: insertItem.status ?? "queued",
+      progress: insertItem.progress ?? 0,
+      quality: insertItem.quality ?? null,
+      format: insertItem.format ?? null,
+      fileSize: insertItem.fileSize ?? null,
+      downloadSpeed: insertItem.downloadSpeed ?? null,
+      estimatedTime: insertItem.estimatedTime ?? null,
+      filePath: insertItem.filePath ?? null,
+      errorMessage: insertItem.errorMessage ?? null,
       id, 
       createdAt: new Date()
     };
@@ -72,7 +83,8 @@ export class MemStorage implements IStorage {
   }
 
   async clearCompletedDownloads(): Promise<void> {
-    for (const [id, item] of this.downloadItems.entries()) {
+    const entries = Array.from(this.downloadItems.entries());
+    for (const [id, item] of entries) {
       if (item.status === "completed") {
         this.downloadItems.delete(id);
       }
