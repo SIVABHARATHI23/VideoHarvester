@@ -2,14 +2,14 @@ import { Settings, HelpCircle, Download } from "lucide-react";
 
 export function AppHeader() {
   return (
-    <header className="glass-card border-0 sticky top-0 z-50 backdrop-blur-lg">
+    <header className="bg-gradient-to-r from-modern-primary via-modern-primary-dark to-modern-accent shadow-2xl sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           <div className="flex items-center space-x-4">
             <div className="w-12 h-12 bg-gradient-modern rounded-xl flex items-center justify-center animate-pulse-glow">
               <Download className="text-white w-6 h-6" />
             </div>
-            <h1 className="text-3xl font-black bg-gradient-modern bg-clip-text text-transparent tracking-tight animate-slide-up">
+            <h1 className="text-3xl font-black text-white drop-shadow-lg tracking-tight animate-slide-up">
               Universal Video Downloader
             </h1>
           </div>
