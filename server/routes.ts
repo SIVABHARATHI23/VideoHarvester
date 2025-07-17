@@ -85,6 +85,12 @@ async function downloadVideo(item: any) {
       '--fragment-retries', '3',
       '--ffmpeg-location', '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin'
     ];
+
+    // Add Instagram-specific parameters to bypass some restrictions
+    if (item.url.includes('instagram.com')) {
+      args.push('--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+      args.push('--referer', 'https://www.instagram.com/');
+    }
     
     if (item.format === 'mp3') {
       args.push('--extract-audio', '--audio-format', 'mp3');
@@ -193,14 +199,21 @@ async function downloadVideo(item: any) {
           });
         }
       } else {
+        let errorMessage = `Download failed with exit code ${code}`;
+        
+        // Provide helpful error messages for common issues
+        if (item.url.includes('instagram.com')) {
+          errorMessage = 'Instagram download failed. This content may be private, age-restricted, or Instagram is blocking downloads. Try a different Instagram post or use a public video.';
+        }
+        
         await storage.updateDownloadItem(item.id, { 
           status: "failed",
-          errorMessage: `Download failed with exit code ${code}`
+          errorMessage
         });
         broadcastToClients({
           type: "download_error",
           id: item.id,
-          error: `Download failed with exit code ${code}`
+          error: errorMessage
         });
         console.log(`Download failed for item ${item.id} with exit code ${code}`);
       }
