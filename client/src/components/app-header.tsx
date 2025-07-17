@@ -10,7 +10,7 @@ export function AppHeader() {
               <Download className="text-white w-6 h-6" />
             </div>
             <h1 className="text-3xl font-black text-white drop-shadow-lg tracking-tight animate-slide-up">
-              Universal Video Downloader
+              YouTube & Video Downloader
             </h1>
           </div>
           <div className="flex items-center space-x-3">

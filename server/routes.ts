@@ -138,10 +138,10 @@ async function downloadVideo(item: any) {
     }
 
     if (item.url.includes('youtube.com') || item.url.includes('youtu.be')) {
-      // Enhanced YouTube Premium support with multiple extraction methods
-      args.push('--extractor-args', 'youtube:player_client=web,mweb');
-      args.push('--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-      args.push('--referer', 'https://www.youtube.com/');
+      // Enhanced YouTube extraction for regular users without Premium
+      args.push('--format', 'best[height<=720]/best');
+      args.push('--extractor-args', 'youtube:player_client=ios,web');
+      args.push('--user-agent', 'com.google.ios.youtube/19.29.1 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X; en_US)');
       args.push('--add-header', 'Accept-Language:en-US,en;q=0.9');
     } else if (item.url.includes('instagram.com')) {
       // Enhanced Instagram extraction with multiple methods
