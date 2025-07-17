@@ -238,27 +238,26 @@ async function downloadVideo(item: any) {
         try {
           const files = await fs.promises.readdir(downloadPath);
           
-          // First try to find file with the specific ID
-          let downloadedFile = files.find(file => 
-            file.includes(`_${item.id}.`) && 
-            (file.endsWith('.mp4') || file.endsWith('.mp3') || file.endsWith('.webm') || file.endsWith('.mkv'))
-          );
-          
-          // If not found, get the newest video file as fallback
-          if (!downloadedFile) {
-            const videoFiles = files
-              .filter(file => 
-                !file.startsWith('.') && 
-                (file.endsWith('.mp4') || file.endsWith('.mp3') || file.endsWith('.webm') || file.endsWith('.mkv'))
-              )
-              .map(file => ({
+          // Find the newest video file created in the last 30 seconds
+          const now = Date.now();
+          const recentFiles = files
+            .filter(file => 
+              !file.startsWith('.') && 
+              (file.endsWith('.mp4') || file.endsWith('.mp3') || file.endsWith('.webm') || file.endsWith('.mkv'))
+            )
+            .map(file => {
+              const filePath = path.join(downloadPath, file);
+              const stats = fs.statSync(filePath);
+              return {
                 file,
-                time: fs.statSync(path.join(downloadPath, file)).mtime
-              }))
-              .sort((a, b) => b.time.getTime() - a.time.getTime());
-            
-            downloadedFile = videoFiles[0]?.file;
-          }
+                time: stats.mtime.getTime(),
+                age: now - stats.mtime.getTime()
+              };
+            })
+            .filter(f => f.age < 30000) // Files created in last 30 seconds
+            .sort((a, b) => b.time - a.time);
+          
+          const downloadedFile = recentFiles[0]?.file;
           
           const actualFilePath = downloadedFile ? path.join(downloadPath, downloadedFile) : null;
           let fileSize = "Unknown";
