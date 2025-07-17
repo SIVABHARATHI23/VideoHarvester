@@ -74,9 +74,9 @@ export function DownloadForm() {
               <Badge variant="secondary" className="text-xs">✓ Facebook</Badge>
               <Dialog>
                 <DialogTrigger asChild>
-                  <Badge variant="outline" className="text-xs cursor-pointer hover:bg-modern-surface-alt">
+                  <button className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 cursor-pointer hover:bg-modern-surface-alt">
                     ❓ Instagram (Alternatives)
-                  </Badge>
+                  </button>
                 </DialogTrigger>
                 <DialogContent className="max-w-3xl">
                   <AlternativeMethods url={url} onClose={() => {}} />

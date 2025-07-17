@@ -1,0 +1,31 @@
+[vite] connecting...
+DOMException {}
+
+Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?
+
+Check the render method of `Primitive.button.SlotClone`.
+    at Badge (https://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/src/components/ui/badge.tsx:35:18)
+    at https://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-5S42QOQO.js?v=1b4bc80c:79:13
+    at https://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-5S42QOQO.js?v=1b4bc80c:56:13
+    at https://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-GVTGVYSA.js?v=1b4bc80c:42:13
+    at https://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-dialog.js?v=1b4bc80c:89:13
+    at Provider (https://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-PLT6GTVM.js?v=1b4bc80c:38:15)
+    at Dialog (https://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-dialog.js?v=1b4bc80c:54:5)
+    at div
+    at div
+    at div
+    at _c9 (https://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/src/components/ui/card.tsx:114:12)
+    at div
+    at _c (https://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/src/components/ui/card.tsx:20:11)
+    at div
+    at DownloadForm (https://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/src/components/download-form.tsx:31:25)
+    at div
+    at div
+    at div
+    at div
+    at Home
+    at Route (https://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=1b4bc80c:323:16)
+    at Switch (https://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=1b4bc80c:379:17)
+    at Router
+    at QueryClientProvider (https://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=1b4bc80c:2805:3)
+    at App
