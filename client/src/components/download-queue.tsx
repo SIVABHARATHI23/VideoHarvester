@@ -300,7 +300,6 @@ export function DownloadQueue() {
                               onClick={() => {
                                 // Use the download ID to construct the filename
                                 const fileName = `video_${download.id}.mp4`;
-                                console.log('Setting video title:', download.title);
                                 setSelectedVideo({
                                   title: download.title || 'Unknown Video',
                                   fileName,
