@@ -52,7 +52,7 @@ async function downloadVideo(item: any) {
   const outputPath = path.join(settings.downloadPath || "~/Downloads/Videos", `%(title)s.%(ext)s`);
   
   const args = [
-    '--format', item.format === 'mp3' ? 'bestaudio[ext=m4a]' : `best[height<=${item.quality.replace('p', '')}]`,
+    '--format', item.format === 'mp3' ? 'bestaudio[ext=m4a]' : `best[height<=${(item.quality || '720p').replace('p', '')}]`,
     '--output', outputPath,
     '--progress'
   ];
