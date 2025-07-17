@@ -269,6 +269,11 @@ export function DownloadQueue() {
                             <p className="text-sm text-red-800 whitespace-pre-line">
                               {download.errorMessage}
                             </p>
+                            {download.url.includes('instagram.com') && (
+                              <div className="mt-2 text-xs text-blue-600 border-t border-blue-200 pt-2">
+                                💡 <strong>Solution:</strong> Copy URL → Visit <a href="https://snapinsta.app" target="_blank" className="underline">snapinsta.app</a> → Paste URL → Download
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
