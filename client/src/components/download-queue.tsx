@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { ListEnd, Play, CheckCircle, Clock, X, FolderOpen, Pause, Download } from "lucide-react";
+import { ListEnd, Play, CheckCircle, Clock, X, FolderOpen, Pause, Download, Music, Video } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useWebSocket } from "@/hooks/use-websocket";

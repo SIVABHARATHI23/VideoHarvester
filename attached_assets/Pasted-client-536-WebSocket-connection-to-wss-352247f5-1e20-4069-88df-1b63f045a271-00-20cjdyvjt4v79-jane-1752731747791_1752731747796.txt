@@ -1,0 +1,298 @@
+client:536 WebSocket connection to 'wss://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/?token=CAL6ElQMtP2Q' failed: 
+setupWebSocket @ client:536
+(anonymous) @ client:531Understand this error
+client:536 Uncaught (in promise) SyntaxError: Failed to construct 'WebSocket': The URL 'wss://localhost:undefined/?token=CAL6ElQMtP2Q' is invalid.
+    at setupWebSocket (client:536:19)
+    at fallback (client:509:16)
+    at WebSocket.<anonymous> (client:555:7)
+setupWebSocket @ client:536
+fallback @ client:509
+(anonymous) @ client:555Understand this error
+chunk-WERSD76P.js?v=1b4bc80c:21551 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+download-queue.tsx:197 Uncaught ReferenceError: Video is not defined
+    at download-queue.tsx:197:24
+    at Array.map (<anonymous>)
+    at DownloadQueue (download-queue.tsx:186:24)
+    at renderWithHooks (chunk-WERSD76P.js?v=1b4bc80c:11548:26)
+    at updateFunctionComponent (chunk-WERSD76P.js?v=1b4bc80c:14582:28)
+    at beginWork (chunk-WERSD76P.js?v=1b4bc80c:15924:22)
+    at HTMLUnknownElement.callCallback2 (chunk-WERSD76P.js?v=1b4bc80c:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-WERSD76P.js?v=1b4bc80c:3699:24)
+    at invokeGuardedCallback (chunk-WERSD76P.js?v=1b4bc80c:3733:39)
+    at beginWork$1 (chunk-WERSD76P.js?v=1b4bc80c:19765:15)
+(anonymous) @ download-queue.tsx:197
+DownloadQueue @ download-queue.tsx:186
+renderWithHooks @ chunk-WERSD76P.js?v=1b4bc80c:11548
+updateFunctionComponent @ chunk-WERSD76P.js?v=1b4bc80c:14582
+beginWork @ chunk-WERSD76P.js?v=1b4bc80c:15924
+callCallback2 @ chunk-WERSD76P.js?v=1b4bc80c:3674
+invokeGuardedCallbackDev @ chunk-WERSD76P.js?v=1b4bc80c:3699
+invokeGuardedCallback @ chunk-WERSD76P.js?v=1b4bc80c:3733
+beginWork$1 @ chunk-WERSD76P.js?v=1b4bc80c:19765
+performUnitOfWork @ chunk-WERSD76P.js?v=1b4bc80c:19198
+workLoopSync @ chunk-WERSD76P.js?v=1b4bc80c:19137
+renderRootSync @ chunk-WERSD76P.js?v=1b4bc80c:19116
+performSyncWorkOnRoot @ chunk-WERSD76P.js?v=1b4bc80c:18874
+flushSyncCallbacks @ chunk-WERSD76P.js?v=1b4bc80c:9119
+(anonymous) @ chunk-WERSD76P.js?v=1b4bc80c:18627
+setTimeout
+scheduleFn @ @tanstack_react-query.js?v=1b4bc80c:555
+flush @ @tanstack_react-query.js?v=1b4bc80c:569
+batch @ @tanstack_react-query.js?v=1b4bc80c:587
+dispatch_fn @ @tanstack_react-query.js?v=1b4bc80c:996
+setData @ @tanstack_react-query.js?v=1b4bc80c:696
+onSuccess @ @tanstack_react-query.js?v=1b4bc80c:897
+resolve @ @tanstack_react-query.js?v=1b4bc80c:456
+Promise.then
+run @ @tanstack_react-query.js?v=1b4bc80c:498
+start @ @tanstack_react-query.js?v=1b4bc80c:536
+fetch @ @tanstack_react-query.js?v=1b4bc80c:926
+executeFetch_fn @ @tanstack_react-query.js?v=1b4bc80c:2211
+onSubscribe @ @tanstack_react-query.js?v=1b4bc80c:1898
+subscribe @ @tanstack_react-query.js?v=1b4bc80c:24
+(anonymous) @ @tanstack_react-query.js?v=1b4bc80c:3022
+subscribeToStore @ chunk-WERSD76P.js?v=1b4bc80c:11984
+commitHookEffectListMount @ chunk-WERSD76P.js?v=1b4bc80c:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=1b4bc80c:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=1b4bc80c:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=1b4bc80c:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=1b4bc80c:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=1b4bc80c:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=1b4bc80c:19447
+performSyncWorkOnRoot @ chunk-WERSD76P.js?v=1b4bc80c:18868
+flushSyncCallbacks @ chunk-WERSD76P.js?v=1b4bc80c:9119
+commitRootImpl @ chunk-WERSD76P.js?v=1b4bc80c:19432
+commitRoot @ chunk-WERSD76P.js?v=1b4bc80c:19277
+finishConcurrentRender @ chunk-WERSD76P.js?v=1b4bc80c:18805
+performConcurrentWorkOnRoot @ chunk-WERSD76P.js?v=1b4bc80c:18718
+workLoop @ chunk-WERSD76P.js?v=1b4bc80c:197
+flushWork @ chunk-WERSD76P.js?v=1b4bc80c:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=1b4bc80c:384Understand this error
+download-queue.tsx:197 Uncaught ReferenceError: Video is not defined
+    at download-queue.tsx:197:24
+    at Array.map (<anonymous>)
+    at DownloadQueue (download-queue.tsx:186:24)
+    at renderWithHooks (chunk-WERSD76P.js?v=1b4bc80c:11548:26)
+    at updateFunctionComponent (chunk-WERSD76P.js?v=1b4bc80c:14582:28)
+    at beginWork (chunk-WERSD76P.js?v=1b4bc80c:15924:22)
+    at HTMLUnknownElement.callCallback2 (chunk-WERSD76P.js?v=1b4bc80c:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-WERSD76P.js?v=1b4bc80c:3699:24)
+    at invokeGuardedCallback (chunk-WERSD76P.js?v=1b4bc80c:3733:39)
+    at beginWork$1 (chunk-WERSD76P.js?v=1b4bc80c:19765:15)
+(anonymous) @ download-queue.tsx:197
+DownloadQueue @ download-queue.tsx:186
+renderWithHooks @ chunk-WERSD76P.js?v=1b4bc80c:11548
+updateFunctionComponent @ chunk-WERSD76P.js?v=1b4bc80c:14582
+beginWork @ chunk-WERSD76P.js?v=1b4bc80c:15924
+callCallback2 @ chunk-WERSD76P.js?v=1b4bc80c:3674
+invokeGuardedCallbackDev @ chunk-WERSD76P.js?v=1b4bc80c:3699
+invokeGuardedCallback @ chunk-WERSD76P.js?v=1b4bc80c:3733
+beginWork$1 @ chunk-WERSD76P.js?v=1b4bc80c:19765
+performUnitOfWork @ chunk-WERSD76P.js?v=1b4bc80c:19198
+workLoopSync @ chunk-WERSD76P.js?v=1b4bc80c:19137
+renderRootSync @ chunk-WERSD76P.js?v=1b4bc80c:19116
+recoverFromConcurrentError @ chunk-WERSD76P.js?v=1b4bc80c:18736
+performSyncWorkOnRoot @ chunk-WERSD76P.js?v=1b4bc80c:18879
+flushSyncCallbacks @ chunk-WERSD76P.js?v=1b4bc80c:9119
+(anonymous) @ chunk-WERSD76P.js?v=1b4bc80c:18627
+setTimeout
+scheduleFn @ @tanstack_react-query.js?v=1b4bc80c:555
+flush @ @tanstack_react-query.js?v=1b4bc80c:569
+batch @ @tanstack_react-query.js?v=1b4bc80c:587
+dispatch_fn @ @tanstack_react-query.js?v=1b4bc80c:996
+setData @ @tanstack_react-query.js?v=1b4bc80c:696
+onSuccess @ @tanstack_react-query.js?v=1b4bc80c:897
+resolve @ @tanstack_react-query.js?v=1b4bc80c:456
+Promise.then
+run @ @tanstack_react-query.js?v=1b4bc80c:498
+start @ @tanstack_react-query.js?v=1b4bc80c:536
+fetch @ @tanstack_react-query.js?v=1b4bc80c:926
+executeFetch_fn @ @tanstack_react-query.js?v=1b4bc80c:2211
+onSubscribe @ @tanstack_react-query.js?v=1b4bc80c:1898
+subscribe @ @tanstack_react-query.js?v=1b4bc80c:24
+(anonymous) @ @tanstack_react-query.js?v=1b4bc80c:3022
+subscribeToStore @ chunk-WERSD76P.js?v=1b4bc80c:11984
+commitHookEffectListMount @ chunk-WERSD76P.js?v=1b4bc80c:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=1b4bc80c:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=1b4bc80c:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=1b4bc80c:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=1b4bc80c:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=1b4bc80c:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=1b4bc80c:19447
+performSyncWorkOnRoot @ chunk-WERSD76P.js?v=1b4bc80c:18868
+flushSyncCallbacks @ chunk-WERSD76P.js?v=1b4bc80c:9119
+commitRootImpl @ chunk-WERSD76P.js?v=1b4bc80c:19432
+commitRoot @ chunk-WERSD76P.js?v=1b4bc80c:19277
+finishConcurrentRender @ chunk-WERSD76P.js?v=1b4bc80c:18805
+performConcurrentWorkOnRoot @ chunk-WERSD76P.js?v=1b4bc80c:18718
+workLoop @ chunk-WERSD76P.js?v=1b4bc80c:197
+flushWork @ chunk-WERSD76P.js?v=1b4bc80c:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=1b4bc80c:384Understand this error
+chunk-WERSD76P.js?v=1b4bc80c:14032 The above error occurred in the <DownloadQueue> component:
+
+    at DownloadQueue (https://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/src/components/download-queue.tsx:30:21)
+    at div
+    at div
+    at div
+    at div
+    at Home
+    at Route (https://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=1b4bc80c:323:16)
+    at Switch (https://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=1b4bc80c:379:17)
+    at Router
+    at QueryClientProvider (https://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=1b4bc80c:2805:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+logCapturedError @ chunk-WERSD76P.js?v=1b4bc80c:14032
+update.callback @ chunk-WERSD76P.js?v=1b4bc80c:14052
+callCallback @ chunk-WERSD76P.js?v=1b4bc80c:11248
+commitUpdateQueue @ chunk-WERSD76P.js?v=1b4bc80c:11265
+commitLayoutEffectOnFiber @ chunk-WERSD76P.js?v=1b4bc80c:17093
+commitLayoutMountEffects_complete @ chunk-WERSD76P.js?v=1b4bc80c:17980
+commitLayoutEffects_begin @ chunk-WERSD76P.js?v=1b4bc80c:17969
+commitLayoutEffects @ chunk-WERSD76P.js?v=1b4bc80c:17920
+commitRootImpl @ chunk-WERSD76P.js?v=1b4bc80c:19353
+commitRoot @ chunk-WERSD76P.js?v=1b4bc80c:19277
+performSyncWorkOnRoot @ chunk-WERSD76P.js?v=1b4bc80c:18895
+flushSyncCallbacks @ chunk-WERSD76P.js?v=1b4bc80c:9119
+(anonymous) @ chunk-WERSD76P.js?v=1b4bc80c:18627
+setTimeout
+scheduleFn @ @tanstack_react-query.js?v=1b4bc80c:555
+flush @ @tanstack_react-query.js?v=1b4bc80c:569
+batch @ @tanstack_react-query.js?v=1b4bc80c:587
+dispatch_fn @ @tanstack_react-query.js?v=1b4bc80c:996
+setData @ @tanstack_react-query.js?v=1b4bc80c:696
+onSuccess @ @tanstack_react-query.js?v=1b4bc80c:897
+resolve @ @tanstack_react-query.js?v=1b4bc80c:456
+Promise.then
+run @ @tanstack_react-query.js?v=1b4bc80c:498
+start @ @tanstack_react-query.js?v=1b4bc80c:536
+fetch @ @tanstack_react-query.js?v=1b4bc80c:926
+executeFetch_fn @ @tanstack_react-query.js?v=1b4bc80c:2211
+onSubscribe @ @tanstack_react-query.js?v=1b4bc80c:1898
+subscribe @ @tanstack_react-query.js?v=1b4bc80c:24
+(anonymous) @ @tanstack_react-query.js?v=1b4bc80c:3022
+subscribeToStore @ chunk-WERSD76P.js?v=1b4bc80c:11984
+commitHookEffectListMount @ chunk-WERSD76P.js?v=1b4bc80c:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=1b4bc80c:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=1b4bc80c:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=1b4bc80c:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=1b4bc80c:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=1b4bc80c:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=1b4bc80c:19447
+performSyncWorkOnRoot @ chunk-WERSD76P.js?v=1b4bc80c:18868
+flushSyncCallbacks @ chunk-WERSD76P.js?v=1b4bc80c:9119
+commitRootImpl @ chunk-WERSD76P.js?v=1b4bc80c:19432
+commitRoot @ chunk-WERSD76P.js?v=1b4bc80c:19277
+finishConcurrentRender @ chunk-WERSD76P.js?v=1b4bc80c:18805
+performConcurrentWorkOnRoot @ chunk-WERSD76P.js?v=1b4bc80c:18718
+workLoop @ chunk-WERSD76P.js?v=1b4bc80c:197
+flushWork @ chunk-WERSD76P.js?v=1b4bc80c:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=1b4bc80c:384Understand this error
+chunk-WERSD76P.js?v=1b4bc80c:9129 Uncaught ReferenceError: Video is not defined
+    at download-queue.tsx:197:24
+    at Array.map (<anonymous>)
+    at DownloadQueue (download-queue.tsx:186:24)
+    at renderWithHooks (chunk-WERSD76P.js?v=1b4bc80c:11548:26)
+    at updateFunctionComponent (chunk-WERSD76P.js?v=1b4bc80c:14582:28)
+    at beginWork (chunk-WERSD76P.js?v=1b4bc80c:15924:22)
+    at beginWork$1 (chunk-WERSD76P.js?v=1b4bc80c:19753:22)
+    at performUnitOfWork (chunk-WERSD76P.js?v=1b4bc80c:19198:20)
+    at workLoopSync (chunk-WERSD76P.js?v=1b4bc80c:19137:13)
+    at renderRootSync (chunk-WERSD76P.js?v=1b4bc80c:19116:15)
+(anonymous) @ download-queue.tsx:197
+DownloadQueue @ download-queue.tsx:186
+renderWithHooks @ chunk-WERSD76P.js?v=1b4bc80c:11548
+updateFunctionComponent @ chunk-WERSD76P.js?v=1b4bc80c:14582
+beginWork @ chunk-WERSD76P.js?v=1b4bc80c:15924
+beginWork$1 @ chunk-WERSD76P.js?v=1b4bc80c:19753
+performUnitOfWork @ chunk-WERSD76P.js?v=1b4bc80c:19198
+workLoopSync @ chunk-WERSD76P.js?v=1b4bc80c:19137
+renderRootSync @ chunk-WERSD76P.js?v=1b4bc80c:19116
+recoverFromConcurrentError @ chunk-WERSD76P.js?v=1b4bc80c:18736
+performSyncWorkOnRoot @ chunk-WERSD76P.js?v=1b4bc80c:18879
+flushSyncCallbacks @ chunk-WERSD76P.js?v=1b4bc80c:9119
+(anonymous) @ chunk-WERSD76P.js?v=1b4bc80c:18627
+setTimeout
+scheduleFn @ @tanstack_react-query.js?v=1b4bc80c:555
+flush @ @tanstack_react-query.js?v=1b4bc80c:569
+batch @ @tanstack_react-query.js?v=1b4bc80c:587
+dispatch_fn @ @tanstack_react-query.js?v=1b4bc80c:996
+setData @ @tanstack_react-query.js?v=1b4bc80c:696
+onSuccess @ @tanstack_react-query.js?v=1b4bc80c:897
+resolve @ @tanstack_react-query.js?v=1b4bc80c:456
+Promise.then
+run @ @tanstack_react-query.js?v=1b4bc80c:498
+start @ @tanstack_react-query.js?v=1b4bc80c:536
+fetch @ @tanstack_react-query.js?v=1b4bc80c:926
+executeFetch_fn @ @tanstack_react-query.js?v=1b4bc80c:2211
+onSubscribe @ @tanstack_react-query.js?v=1b4bc80c:1898
+subscribe @ @tanstack_react-query.js?v=1b4bc80c:24
+(anonymous) @ @tanstack_react-query.js?v=1b4bc80c:3022
+subscribeToStore @ chunk-WERSD76P.js?v=1b4bc80c:11984
+commitHookEffectListMount @ chunk-WERSD76P.js?v=1b4bc80c:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=1b4bc80c:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=1b4bc80c:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=1b4bc80c:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=1b4bc80c:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=1b4bc80c:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=1b4bc80c:19447
+performSyncWorkOnRoot @ chunk-WERSD76P.js?v=1b4bc80c:18868
+flushSyncCallbacks @ chunk-WERSD76P.js?v=1b4bc80c:9119
+commitRootImpl @ chunk-WERSD76P.js?v=1b4bc80c:19432
+commitRoot @ chunk-WERSD76P.js?v=1b4bc80c:19277
+finishConcurrentRender @ chunk-WERSD76P.js?v=1b4bc80c:18805
+performConcurrentWorkOnRoot @ chunk-WERSD76P.js?v=1b4bc80c:18718
+workLoop @ chunk-WERSD76P.js?v=1b4bc80c:197
+flushWork @ chunk-WERSD76P.js?v=1b4bc80c:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=1b4bc80c:384Understand this error
+use-websocket.tsx:56 WebSocket connection to 'wss://352247f5-1e20-4069-88df-1b63f045a271-00-20cjdyvjt4v79.janeway.replit.dev/ws' failed: WebSocket is closed before the connection is established.
+(anonymous) @ use-websocket.tsx:56
+safelyCallDestroy @ chunk-WERSD76P.js?v=1b4bc80c:16748
+commitHookEffectListUnmount @ chunk-WERSD76P.js?v=1b4bc80c:16875
+commitPassiveUnmountInsideDeletedTreeOnFiber @ chunk-WERSD76P.js?v=1b4bc80c:18283
+commitPassiveUnmountEffectsInsideOfDeletedTree_begin @ chunk-WERSD76P.js?v=1b4bc80c:18245
+commitPassiveUnmountEffects_begin @ chunk-WERSD76P.js?v=1b4bc80c:18181
+commitPassiveUnmountEffects @ chunk-WERSD76P.js?v=1b4bc80c:18169
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=1b4bc80c:19489
+flushPassiveEffects @ chunk-WERSD76P.js?v=1b4bc80c:19447
+performSyncWorkOnRoot @ chunk-WERSD76P.js?v=1b4bc80c:18868
+flushSyncCallbacks @ chunk-WERSD76P.js?v=1b4bc80c:9119
+(anonymous) @ chunk-WERSD76P.js?v=1b4bc80c:18627
+setTimeout
+scheduleFn @ @tanstack_react-query.js?v=1b4bc80c:555
+flush @ @tanstack_react-query.js?v=1b4bc80c:569
+batch @ @tanstack_react-query.js?v=1b4bc80c:587
+dispatch_fn @ @tanstack_react-query.js?v=1b4bc80c:996
+setData @ @tanstack_react-query.js?v=1b4bc80c:696
+onSuccess @ @tanstack_react-query.js?v=1b4bc80c:897
+resolve @ @tanstack_react-query.js?v=1b4bc80c:456
+Promise.then
+run @ @tanstack_react-query.js?v=1b4bc80c:498
+start @ @tanstack_react-query.js?v=1b4bc80c:536
+fetch @ @tanstack_react-query.js?v=1b4bc80c:926
+executeFetch_fn @ @tanstack_react-query.js?v=1b4bc80c:2211
+onSubscribe @ @tanstack_react-query.js?v=1b4bc80c:1898
+subscribe @ @tanstack_react-query.js?v=1b4bc80c:24
+(anonymous) @ @tanstack_react-query.js?v=1b4bc80c:3022
+subscribeToStore @ chunk-WERSD76P.js?v=1b4bc80c:11984
+commitHookEffectListMount @ chunk-WERSD76P.js?v=1b4bc80c:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=1b4bc80c:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=1b4bc80c:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=1b4bc80c:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=1b4bc80c:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=1b4bc80c:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=1b4bc80c:19447
+performSyncWorkOnRoot @ chunk-WERSD76P.js?v=1b4bc80c:18868
+flushSyncCallbacks @ chunk-WERSD76P.js?v=1b4bc80c:9119
+commitRootImpl @ chunk-WERSD76P.js?v=1b4bc80c:19432
+commitRoot @ chunk-WERSD76P.js?v=1b4bc80c:19277
+finishConcurrentRender @ chunk-WERSD76P.js?v=1b4bc80c:18805
+performConcurrentWorkOnRoot @ chunk-WERSD76P.js?v=1b4bc80c:18718
+workLoop @ chunk-WERSD76P.js?v=1b4bc80c:197
+flushWork @ chunk-WERSD76P.js?v=1b4bc80c:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=1b4bc80c:384Understand this warning
+use-websocket.tsx:41 WebSocket error: Event {isTrusted: true, type: 'error', target: WebSocket, currentTarget: WebSocket, eventPhase: 2, …}
+ws.current.onerror @ use-websocket.tsx:41Understand this error
+use-websocket.tsx:32 WebSocket disconnected
