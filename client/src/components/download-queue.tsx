@@ -278,20 +278,36 @@ export function DownloadQueue() {
                           <FolderOpen className="w-4 h-4 text-modern-primary" />
                         </Button>
                         {download.format !== "mp3" && download.filePath && (
-                          <Button 
-                            size="sm"
-                            onClick={() => {
-                              const fileName = download.filePath?.split('/').pop() || download.title || 'video';
-                              setSelectedVideo({
-                                title: download.title || 'Unknown Video',
-                                fileName
-                              });
-                            }}
-                            className="bg-modern-primary hover:bg-modern-primary-dark text-white hover-lift p-2 h-auto animate-pulse-glow"
-                            title="Play Video"
-                          >
-                            <Play className="w-4 h-4" />
-                          </Button>
+                          <>
+                            <Button 
+                              size="sm"
+                              onClick={() => {
+                                const fileName = download.filePath?.split('/').pop() || download.title || 'video';
+                                setSelectedVideo({
+                                  title: download.title || 'Unknown Video',
+                                  fileName
+                                });
+                              }}
+                              className="bg-modern-primary hover:bg-modern-primary-dark text-white hover-lift p-2 h-auto animate-pulse-glow"
+                              title="Play Video"
+                            >
+                              <Play className="w-4 h-4" />
+                            </Button>
+                            <Button 
+                              size="sm"
+                              onClick={() => {
+                                const fileName = download.filePath?.split('/').pop() || download.title || 'video';
+                                const link = document.createElement('a');
+                                link.href = `/api/video/${encodeURIComponent(fileName)}`;
+                                link.download = fileName;
+                                link.click();
+                              }}
+                              className="bg-modern-accent hover:bg-modern-accent text-white hover-lift p-2 h-auto"
+                              title="Download Video File"
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                          </>
                         )}
                         {download.format === "mp3" && download.filePath && (
                           <Button 
@@ -304,7 +320,7 @@ export function DownloadQueue() {
                               link.click();
                             }}
                             className="bg-modern-accent hover:bg-modern-accent text-white hover-lift p-2 h-auto animate-pulse-glow"
-                            title="Download Audio"
+                            title="Download Audio File"
                           >
                             <Download className="w-4 h-4" />
                           </Button>
