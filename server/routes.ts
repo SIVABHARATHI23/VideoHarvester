@@ -556,12 +556,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Add parent directory option
       const parentPath = path.dirname(currentPath);
-      if (parentPath !== currentPath && parentPath !== '/') {
+      if (parentPath !== currentPath) {
         folders.unshift({
           name: "..",
           path: parentPath,
           type: 'folder'
         });
+      }
+      
+      // Add common system directories when at home
+      if (currentPath === (process.env.HOME || "/home/runner")) {
+        const commonDirs = [
+          { name: "Desktop", path: path.join(currentPath, "Desktop") },
+          { name: "Documents", path: path.join(currentPath, "Documents") },
+          { name: "Pictures", path: path.join(currentPath, "Pictures") },
+          { name: "Videos", path: path.join(currentPath, "Videos") },
+          { name: "Music", path: path.join(currentPath, "Music") }
+        ];
+        
+        for (const dir of commonDirs) {
+          try {
+            await fs.promises.access(dir.path);
+            const exists = folders.find(f => f.name === dir.name);
+            if (!exists) {
+              folders.push({
+                name: dir.name,
+                path: dir.path,
+                type: 'folder'
+              });
+            }
+          } catch {
+            // Directory doesn't exist, skip it
+          }
+        }
       }
       
       res.json({
