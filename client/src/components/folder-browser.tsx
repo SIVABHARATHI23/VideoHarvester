@@ -43,7 +43,10 @@ export function FolderBrowser({ isOpen, onClose, onSelectPath, currentPath = "~"
   };
 
   const handleSelectFolder = () => {
-    setSelectedPath(browseData?.currentPath || browsePath);
+    const pathToSelect = browseData?.currentPath || browsePath;
+    setSelectedPath(pathToSelect);
+    onSelectPath(pathToSelect);
+    onClose();
   };
 
   const handleConfirm = () => {

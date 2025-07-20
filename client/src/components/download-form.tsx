@@ -66,7 +66,7 @@ export function DownloadForm() {
       url: cleanUrl,
       status: "queued",
       format: selectedFormat,
-      quality: selectedFormat === "mp3" ? null : selectedQuality,
+      quality: selectedQuality, // Always pass quality, let server handle it
     });
   };
 
