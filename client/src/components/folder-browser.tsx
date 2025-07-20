@@ -25,9 +25,9 @@ interface BrowseResponse {
   folders: FolderItem[];
 }
 
-export function FolderBrowser({ isOpen, onClose, onSelectPath, currentPath = "~" }: FolderBrowserProps) {
-  const [browsePath, setBrowsePath] = useState(currentPath);
-  const [selectedPath, setSelectedPath] = useState(currentPath);
+export function FolderBrowser({ isOpen, onClose, onSelectPath, currentPath = "/home/runner" }: FolderBrowserProps) {
+  const [browsePath, setBrowsePath] = useState(currentPath === "~" ? "/home/runner" : currentPath);
+  const [selectedPath, setSelectedPath] = useState(currentPath === "~" ? "/home/runner" : currentPath);
 
   const { data: browseData, isLoading } = useQuery<BrowseResponse>({
     queryKey: ["/api/browse", browsePath],
@@ -55,7 +55,7 @@ export function FolderBrowser({ isOpen, onClose, onSelectPath, currentPath = "~"
   };
 
   const goHome = () => {
-    setBrowsePath("~");
+    setBrowsePath("/home/runner");
   };
 
   return (

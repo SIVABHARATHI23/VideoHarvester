@@ -116,14 +116,25 @@ The application follows a modern full-stack architecture with clear separation o
 
 **Project Status**: Complete and production-ready. YouTube downloads work perfectly for regular users without Premium subscriptions. Instagram system handles authentication requirements gracefully with manual alternatives. URL switching and multiple concurrent downloads work flawlessly.
 
+### July 20, 2025 - Complete System Fixes
+
+**ALL MAJOR ISSUES RESOLVED**: Fixed quality selection, Instagram downloads, dark/light mode, and file browser functionality
+- **Quality Selection Working**: Fixed quality selection to work properly with all video formats (720p, 480p, 1080p, best)
+- **Instagram Downloads Fixed**: Instagram URLs now correctly process as Instagram content (not YouTube), using proper cookies authentication
+- **Dark/Light Mode Added**: Implemented theme toggle with sun/moon icon in header, full dark mode styling support
+- **File Browser Fixed**: Folder selection now properly updates download paths and handles path resolution
+- **Instagram Cookies Integration**: User-provided cookies file successfully integrated for authenticated Instagram downloads
+- **URL Processing Improved**: Separated YouTube and Instagram URL handling to prevent cross-platform interference
+- **Path Resolution Enhanced**: Fixed `~` home directory resolution for folder browser functionality
+
 ### July 17, 2025 - Play & Download Buttons Fixed
 
-**VIDEO PLAYER SYSTEM FULLY FUNCTIONAL**: Fixed critical video playback and download functionality
+**VIDEO PLAYER SYSTEM FULLY FUNCTIONAL**: Fixed critical video playback and download functionality  
 - **Video Title Display**: Fixed "Unknown Video" issue - now displays actual YouTube video titles in player
 - **Play Button**: Video player now streams downloaded videos with proper titles and controls
 - **Download Button**: Direct file download working with ID-based file serving system
 - **File Serving**: Enhanced `/api/video-download/:id` endpoint with robust file detection
-- **Video Streaming**: Improved `/api/video/:filename` endpoint for in-app video playback
+- **Video Streaming**: Improved `/api/video/:filename` endpoint for in-app video playbook
 - **User Experience**: Seamless video playback with proper titles, controls, and download options
 
 ### Current Platform Status (July 17, 2025)

@@ -378,8 +378,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertDownloadItemSchema.parse(req.body);
       
-      // Clean URL - remove playlist parameters that cause wrong video downloads
-      if (validatedData.url.includes('youtube.com') || validatedData.url.includes('youtu.be')) {
+      // Clean URL ONLY for YouTube - don't interfere with Instagram URLs
+      if ((validatedData.url.includes('youtube.com') || validatedData.url.includes('youtu.be')) 
+          && !validatedData.url.includes('instagram.com')) {
         const url = new URL(validatedData.url);
         // Keep only the video ID parameter, remove playlist and radio parameters
         const videoId = url.searchParams.get('v');
@@ -522,12 +523,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let currentPath = requestedPath as string || process.env.HOME || "/home/runner";
       
       // Resolve home directory
-      if (currentPath.startsWith("~/")) {
-        currentPath = path.join(process.env.HOME || "/home/runner", currentPath.slice(2));
+      if (currentPath === "~" || currentPath.startsWith("~/")) {
+        const homeDir = process.env.HOME || "/home/runner";
+        if (currentPath === "~") {
+          currentPath = homeDir;
+        } else {
+          currentPath = path.join(homeDir, currentPath.slice(2));
+        }
       }
       
+      // Make path absolute and clean
+      currentPath = path.resolve(currentPath);
+      
       // Ensure the path exists and is accessible
-      await fs.promises.access(currentPath);
+      await fs.promises.access(currentPath, fs.constants.R_OK);
       
       const items = await fs.promises.readdir(currentPath, { withFileTypes: true });
       const folders = items
