@@ -133,13 +133,11 @@ async function downloadVideo(item: any) {
       '--ffmpeg-location', '/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin'
     ];
 
-    // Add format selection for audio downloads only
+    // Add format selection based on item format and quality
     if (item.format === 'mp3') {
       args.push('--extract-audio', '--audio-format', 'mp3');
-    }
-
-    if (item.url.includes('youtube.com') || item.url.includes('youtu.be')) {
-      // Enhanced YouTube extraction for regular users without Premium
+    } else {
+      // Add format selection for video downloads based on quality
       let formatString = 'best';
       
       if (item.quality === 'best') {
@@ -150,14 +148,31 @@ async function downloadVideo(item: any) {
         formatString = 'best[height<=720]/best';
       } else if (item.quality === '480p') {
         formatString = 'best[height<=480]/best';
+      } else if (item.quality === '360p') {
+        formatString = 'best[height<=360]/best';
       }
       
+      // Apply format selection for all platforms
       args.push('--format', formatString);
+      console.log(`Quality selection: ${item.quality} -> Format: ${formatString}`);
+    }
+
+    if (item.url.includes('youtube.com') || item.url.includes('youtu.be')) {
+      // Enhanced YouTube extraction for regular users without Premium
       args.push('--extractor-args', 'youtube:player_client=ios,web');
       args.push('--user-agent', 'com.google.ios.youtube/19.29.1 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X; en_US)');
       args.push('--add-header', 'Accept-Language:en-US,en;q=0.9');
     } else if (item.url.includes('instagram.com')) {
-      // Enhanced Instagram extraction with multiple methods
+      // Enhanced Instagram extraction with cookies support
+      console.log('Instagram download - using authenticated cookies');
+      
+      // Add cookies file if it exists
+      const cookiesPath = '/home/runner/Downloads/instagram_cookies.txt';
+      if (fs.existsSync(cookiesPath)) {
+        args.push('--cookies', cookiesPath);
+        console.log('Using Instagram cookies for authentication');
+      }
+      
       args.push('--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1');
       args.push('--referer', 'https://www.instagram.com/');
       args.push('--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8');
