@@ -17,7 +17,7 @@ export async function extractInstagramVideo(url: string, downloadPath: string, i
     console.log('Trying gallery-dl method...');
     const galleryResult = await tryGalleryDl(url, downloadPath, itemId);
     if (galleryResult.success) return galleryResult;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Gallery-dl method failed:', error);
   }
 
@@ -26,7 +26,7 @@ export async function extractInstagramVideo(url: string, downloadPath: string, i
     console.log('Trying direct API simulation...');
     const apiResult = await tryDirectApiExtraction(url, downloadPath, itemId);
     if (apiResult.success) return apiResult;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Direct API method failed:', error);
   }
 
@@ -35,7 +35,7 @@ export async function extractInstagramVideo(url: string, downloadPath: string, i
     console.log('Trying advanced yt-dlp bypass...');
     const bypassResult = await tryAdvancedBypass(url, downloadPath, itemId);
     if (bypassResult.success) return bypassResult;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Advanced bypass failed:', error);
   }
 
@@ -118,7 +118,7 @@ async function tryDirectApiExtraction(url: string, downloadPath: string, itemId:
       url
     ];
 
-    const ytdlp = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    const ytdlp = spawn('yt-dlp', args);
     let success = false;
 
     ytdlp.on('close', (code) => {
@@ -174,7 +174,7 @@ async function tryAdvancedBypass(url: string, downloadPath: string, itemId: numb
       url
     ];
 
-    const ytdlp = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    const ytdlp = spawn('yt-dlp', args);
     let success = false;
 
     ytdlp.on('close', (code) => {

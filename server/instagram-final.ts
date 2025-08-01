@@ -9,7 +9,7 @@ export async function downloadInstagramFinal(url: string, downloadPath: string, 
   try {
     const success = await tryInstaloader(url, downloadPath, itemId);
     if (success) return true;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Instaloader failed:', error);
   }
 
@@ -17,7 +17,7 @@ export async function downloadInstagramFinal(url: string, downloadPath: string, 
   try {
     const success = await tryGalleryDlAdvanced(url, downloadPath, itemId);
     if (success) return true;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Gallery-dl advanced failed:', error);
   }
 
@@ -25,7 +25,7 @@ export async function downloadInstagramFinal(url: string, downloadPath: string, 
   try {
     const success = await trySessionBypass(url, downloadPath, itemId);
     if (success) return true;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Session bypass failed:', error);
   }
 
@@ -169,7 +169,7 @@ async function trySessionBypass(url: string, downloadPath: string, itemId: numbe
       url
     ];
 
-    const process = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    const process = spawn('yt-dlp', args);
     let success = false;
 
     process.on('close', (code) => {

@@ -1,265 +1,639 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Link, Plus, Play, Camera, Music, Video, HelpCircle, Zap, Star, Crown, Download } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
-import { AlternativeMethods } from "./alternative-methods";
-import type { InsertDownloadItem } from "@shared/schema";
+import { 
+  Download, Video, Music, Settings, Zap, Crown, Star, 
+  Camera, Play, Globe, Clock, FileText, Image, 
+  ChevronDown, ChevronUp, Loader2, CheckCircle, 
+  AlertCircle, Info, Copy, Link2, Scissors,
+  Volume2, Palette, Filter, Target, BarChart3, FolderOpen
+} from "lucide-react";
+import { useWebSocket } from "@/hooks/use-websocket";
 
-export function DownloadForm() {
-  const [url, setUrl] = useState("");
-  const [selectedFormat, setSelectedFormat] = useState<"mp4" | "mp3">("mp4");
-  const [selectedQuality, setSelectedQuality] = useState<"1080p" | "720p" | "480p" | "best">("best");
-  const [showAlternatives, setShowAlternatives] = useState(false);
+interface VideoInfo {
+  title: string;
+  duration: string;
+  views: string;
+  uploader: string;
+  thumbnail: string;
+  availableFormats: string[];
+  availableQualities: string[];
+  fileSize: string;
+  platform: string;
+}
+
+interface DownloadHistoryItem {
+  id: number;
+  title: string;
+  format: string;
+  quality: string;
+  timestamp: string;
+  platform: string;
+}
+
+export default function AdvancedDownloadForm() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const [url, setUrl] = useState<string>("");
+  const [selectedFormat, setSelectedFormat] = useState<string>("mp4");
+  const [selectedQuality, setSelectedQuality] = useState<string>("best");
+  const [isAdvancedMode, setIsAdvancedMode] = useState<boolean>(false);
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
+  const [downloadHistory, setDownloadHistory] = useState<DownloadHistoryItem[]>([]);
+  const [batchUrls, setBatchUrls] = useState<string>("");
+  const [showBatchMode, setShowBatchMode] = useState<boolean>(false);
+  
+  // Advanced options
+  const [audioCodec, setAudioCodec] = useState<string>("mp3");
+  const [videoCodec, setVideoCodec] = useState<string>("h264");
+  const [startTime, setStartTime] = useState<string>("");
+  const [endTime, setEndTime] = useState<string>("");
+  const [subtitles, setSubtitles] = useState<boolean>(false);
+  const [thumbnail, setThumbnail] = useState<boolean>(false);
+  const [metadata, setMetadata] = useState<boolean>(true);
+  const [customFilename, setCustomFilename] = useState<string>("");
+  const [downloadLocation, setDownloadLocation] = useState<string>("Downloads/Videos");
+  
+  const progressRef = useRef<HTMLDivElement | null>(null);
+  const [infoError, setInfoError] = useState<string | null>(null);
 
-  const addDownloadMutation = useMutation({
-    mutationFn: async (data: InsertDownloadItem) => {
-      const response = await apiRequest("POST", "/api/downloads", data);
-      return response.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/downloads"] });
-      console.log('Download added successfully:', data);
-      toast({
-        title: "Download Added",
-        description: `${data.title || 'Video'} has been added to the download queue.`,
+  // WebSocket: update download history on relevant events
+  const fetchHistory = useCallback(() => {
+    fetch('/api/downloads')
+      .then(res => res.json())
+      .then((data: DownloadHistoryItem[]) => {
+        setDownloadHistory(data);
+      })
+      .catch(() => {
+        setDownloadHistory([]);
       });
-    },
-    onError: (error) => {
+  }, []);
+
+  const onWebSocketMessage = useCallback((message: any) => {
+    if ([
+      'download_started',
+      'download_progress',
+      'download_complete',
+      'download_error',
+      'download_cancelled',
+      'download_removed'
+    ].includes(message.type)) {
+      fetchHistory();
+    }
+  }, [fetchHistory]);
+  useWebSocket(onWebSocketMessage);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
+  // Detect platform from URL
+  const detectPlatform = (url: string): string => {
+    if (url.includes("youtube.com") || url.includes("youtu.be")) return "YouTube";
+    if (url.includes("instagram.com")) return "Instagram";
+    if (url.includes("tiktok.com")) return "TikTok";
+    if (url.includes("twitter.com") || url.includes("x.com")) return "Twitter/X";
+    if (url.includes("facebook.com")) return "Facebook";
+    // if (url.includes("vimeo.com")) return "Vimeo";
+    return "Unknown Platform";
+  };
+
+  const fetchVideoInfo = async (videoUrl: string) => {
+    setIsAnalyzing(true);
+    setInfoError(null);
+    setVideoInfo(null);
+    try {
+      const res = await fetch("/api/video-info", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: videoUrl }),
+      });
+      if (!res.ok) throw new Error("Failed to fetch video info");
+      const info = await res.json();
+      setVideoInfo(info);
+    } catch (err: any) {
+      setInfoError("Could not fetch video info");
+    }
+    setIsAnalyzing(false);
+  };
+
+  const handleSubmit = async () => {
+    if (!url.trim()) return;
+    await fetchVideoInfo(url);
+  };
+
+  const handleDownload = async () => {
+    if (!url.trim()) return;
+    setIsAnalyzing(true);
+    try {
+      const res = await fetch("/api/downloads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url,
+          format: selectedFormat,
+          quality: selectedQuality,
+          downloadLocation,
+          // Advanced options
+          audioCodec,
+          videoCodec,
+          startTime,
+          endTime,
+          subtitles,
+          thumbnail,
+          metadata,
+          customFilename,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to start download");
       toast({
-        title: "Error",
-        description: error.message || "Failed to add download",
+        title: "Download started!",
+        description: `Your download has been initiated. Files will be saved to: ${downloadLocation}`,
+      });
+      setUrl("");
+      setVideoInfo(null);
+    } catch (err) {
+      toast({
+        title: "Failed to start download",
+        description: "Could not initiate download. Please try again.",
         variant: "destructive",
       });
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!url.trim()) return;
-
-    // Clean and validate URL
-    const cleanUrl = url.trim();
-    console.log('Submitting URL:', cleanUrl);
-
-    // Show Instagram warning before attempting download
-    if (cleanUrl.includes('instagram.com')) {
-      toast({
-        title: "Instagram Authentication Required", 
-        description: "Instagram blocks automated downloads. Trying advanced methods, but manual alternatives may be needed.",
-        variant: "default",
-      });
     }
+    setIsAnalyzing(false);
+  };
 
-    // Clear the input immediately when submitting
-    setUrl("");
+  const handleBatchDownload = async (): Promise<void> => {
+    const urls: string[] = batchUrls.split('\n').filter((u: string) => u.trim());
+    for (const u of urls) {
+      try {
+        await fetch("/api/downloads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: u,
+            format: selectedFormat,
+            quality: selectedQuality,
+            downloadLocation,
+            // Advanced options
+            audioCodec,
+            videoCodec,
+            startTime,
+            endTime,
+            subtitles,
+            thumbnail,
+            metadata,
+            customFilename,
+          }),
+        });
+      } catch {}
+    }
+    toast({
+      title: "Batch download(s) started!",
+      description: `Batch download(s) initiated for ${urls.length} URLs. Files will be saved to: ${downloadLocation}`,
+    });
+    setBatchUrls("");
+  };
 
-    addDownloadMutation.mutate({
-      url: cleanUrl,
-      status: "queued",
-      format: selectedFormat,
-      quality: selectedQuality, // Always pass quality, let server handle it
+  const copyToClipboard = (text: string): void => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copied!",
+      description: "Text copied to clipboard",
     });
   };
 
+  const handleSelectDownloadLocation = async () => {
+    try {
+      // Try to use the File System Access API (modern browsers)
+      if ('showDirectoryPicker' in window) {
+        const dirHandle = await (window as any).showDirectoryPicker();
+        // Get the full path from the directory handle
+        const path = dirHandle.name;
+        setDownloadLocation(path);
+        toast({
+          title: "Location selected!",
+          description: `Files will be saved to: ${path}`,
+        });
+      } else {
+        // Fallback for older browsers - show input dialog with common paths
+        const commonPaths = [
+          "Downloads",
+          "Downloads/Videos", 
+          "Documents/Videos",
+          "Desktop/Videos",
+          "Music",
+          "Videos"
+        ];
+        const customPath = prompt(
+          "Enter download path (e.g., Downloads, Downloads/Videos, Desktop/Videos):\n\nCommon options:\n" + 
+          commonPaths.join("\n"), 
+          downloadLocation
+        );
+        if (customPath) {
+          setDownloadLocation(customPath);
+          toast({
+            title: "Location set!",
+            description: `Files will be saved to: ${customPath}`,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error selecting directory:', error);
+      toast({
+        title: "Error",
+        description: "Could not select directory. Using default location.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const formatOptions = [
+    { value: "mp4", label: "MP4 Video", icon: Video, color: "bg-blue-500" },
+    { value: "mp3", label: "MP3 Audio", icon: Music, color: "bg-green-500" },
+    { value: "webm", label: "WebM Video", icon: Video, color: "bg-purple-500" },
+    { value: "wav", label: "WAV Audio", icon: Volume2, color: "bg-orange-500" },
+    { value: "gif", label: "Animated GIF", icon: Image, color: "bg-pink-500" }
+  ];
+
+  const qualityOptions = [
+    { value: "best", label: "Best Available", icon: Crown, gradient: "from-purple-500 to-pink-500" },
+    { value: "2160p", label: "4K Ultra HD", icon: Star, gradient: "from-blue-500 to-purple-500" },
+    { value: "1440p", label: "2K Quad HD", icon: Zap, gradient: "from-green-500 to-blue-500" },
+    { value: "1080p", label: "Full HD", icon: Target, gradient: "from-red-500 to-orange-500" },
+    { value: "720p", label: "HD Ready", icon: BarChart3, gradient: "from-yellow-500 to-red-500" },
+    { value: "480p", label: "Standard", icon: Filter, gradient: "from-gray-400 to-gray-600" }
+  ];
+
+  const handleRemoveDownload = async (id: number) => {
+    try {
+      const res = await fetch(`/api/downloads/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to remove download');
+      toast({ title: 'Removed', description: 'Download removed from history.' });
+      fetchHistory();
+    } catch (err) {
+      toast({ title: 'Failed to remove', description: 'Could not remove download.', variant: 'destructive' });
+    }
+  };
+
   return (
-    <div className="mb-8">
-      <Card className="glass-card animate-slide-up hover-lift border-0">
-        <CardContent className="pt-8 pb-8">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold bg-gradient-modern bg-clip-text text-transparent mb-2">
-              Instagram Video Downloader
-            </h2>
-            <p className="text-modern-muted">Specialized for Instagram with advanced extraction methods</p>
-            <div className="flex flex-wrap justify-center gap-2 mt-3">
-              <Badge variant="secondary" className="text-xs">🎯 Instagram (Primary Focus)</Badge>
-              <Badge variant="secondary" className="text-xs">✓ YouTube</Badge>
-              <Badge variant="secondary" className="text-xs">✓ TikTok</Badge>
-              <Badge variant="secondary" className="text-xs">✓ Twitter</Badge>
-              <Badge variant="secondary" className="text-xs">✓ Facebook</Badge>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <button className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 cursor-pointer hover:bg-modern-surface-alt">
-                    💡 Need Help?
-                  </button>
-                </DialogTrigger>
-                <DialogContent className="max-w-3xl">
-                  <AlternativeMethods url={url} onClose={() => {}} />
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
+    <div className="max-w-6xl mx-auto p-6 space-y-6">
+      {/* Main Download Interface */}
+      <Card className="bg-gradient-to-br from-white via-blue-50 to-purple-50 border-0 shadow-2xl">
+        <CardHeader className="text-center pb-4">
+          <CardTitle className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-black text-transparent">
+             Video Downloader
+          </CardTitle>
+          <p className="text-gray-600 text-lg">Professional-grade downloading with advanced features</p>
           
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Format Selection with Modern Pills */}
-            <div className="text-center">
-              <label className="text-sm font-semibold text-modern-muted mb-3 block">
-                Choose Format
-              </label>
-              <div className="inline-flex bg-modern-surface-alt rounded-xl p-1 border border-modern-border">
-                <button
-                  type="button"
-                  onClick={() => setSelectedFormat("mp4")}
-                  className={`flex items-center px-6 py-3 rounded-lg text-sm font-medium transition-all duration-300 ${
-                    selectedFormat === "mp4"
-                      ? "bg-modern-primary text-white shadow-lg transform scale-105"
-                      : "text-modern-text-muted hover:text-modern-primary hover:bg-white"
-                  }`}
-                >
-                  <Video className="w-5 h-5 mr-2" />
-                  Video (MP4)
-              </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedFormat("mp3")}
-                  className={`flex items-center px-6 py-3 rounded-lg text-sm font-medium transition-all duration-300 ${
-                    selectedFormat === "mp3"
-                      ? "bg-modern-accent text-white shadow-lg transform scale-105"
-                      : "text-modern-text-muted hover:text-modern-accent hover:bg-white"
-                  }`}
-                >
-                  <Music className="w-5 h-5 mr-2" />
-                  Audio (MP3)
-                </button>
-            </div>
+          {/* Platform Support Badges */}
+          <div className="flex flex-wrap justify-center gap-2 mt-4">
+            {["YouTube", "Instagram", "TikTok", "Twitter", "Facebook", "Hotstar", "+1000 more"].map((platform, idx) => (
+              <Badge key={platform} variant="secondary" className="animate-pulse" style={{animationDelay: `${idx * 0.2}s`}}>
+                {platform}
+              </Badge>
+            ))}
           </div>
+        </CardHeader>
 
-            {/* Quality Selection for Video */}
-            {selectedFormat === "mp4" && (
-              <div className="text-center">
-                <label className="text-sm font-semibold text-modern-muted mb-3 block">
-                  Video Quality
-                </label>
-                <div className="inline-flex bg-modern-surface-alt rounded-xl p-1 border border-modern-border">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedQuality("best")}
-                    className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
-                      selectedQuality === "best"
-                        ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg transform scale-105"
-                        : "text-modern-text-muted hover:text-purple-500 hover:bg-white"
-                    }`}
-                  >
-                    <Crown className="w-4 h-4 mr-2" />
-                    Best Quality
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedQuality("1080p")}
-                    className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
-                      selectedQuality === "1080p"
-                        ? "bg-modern-primary text-white shadow-lg transform scale-105"
-                        : "text-modern-text-muted hover:text-modern-primary hover:bg-white"
-                    }`}
-                  >
-                    <Star className="w-4 h-4 mr-2" />
-                    1080p HD
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedQuality("720p")}
-                    className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
-                      selectedQuality === "720p"
-                        ? "bg-modern-accent text-white shadow-lg transform scale-105"
-                        : "text-modern-text-muted hover:text-modern-accent hover:bg-white"
-                    }`}
-                  >
-                    <Zap className="w-4 h-4 mr-2" />
-                    720p
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedQuality("480p")}
-                    className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
-                      selectedQuality === "480p"
-                        ? "bg-gray-500 text-white shadow-lg transform scale-105"
-                        : "text-modern-text-muted hover:text-gray-500 hover:bg-white"
-                    }`}
-                  >
-                    480p
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* URL Input with Modern Design */}
+        <CardContent className="space-y-8">
+          {/* URL Input Section */}
+          <div className="space-y-6">
             <div className="relative group">
-              <div className="absolute inset-0 bg-gradient-modern rounded-xl blur opacity-20 group-hover:opacity-30 transition-opacity"></div>
-              <div className="relative">
-                <Input
-                  type="url"
-                  placeholder="🔗 Paste video URL from any platform..."
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  className="h-14 pr-20 text-base border-2 border-modern-border rounded-xl focus:border-modern-primary transition-all duration-300 bg-white/50 backdrop-blur-sm"
-                  required
-                />
-                <Button
-                  type="submit"
-                  disabled={addDownloadMutation.isPending}
-                  className="absolute right-2 top-2 bottom-2 px-6 bg-gradient-modern hover:shadow-lg text-white rounded-lg transition-all duration-300 transform hover:scale-105"
-                >
-                  {addDownloadMutation.isPending ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-600 rounded-2xl blur opacity-20 group-hover:opacity-30 transition-opacity"></div>
+              <div className="relative bg-white rounded-2xl p-1 border-2 border-gray-200">
+                <div className="flex">
+                  <Input
+                    type="url"
+                    placeholder="🔗 Paste any video URL here..."
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    className="flex-1 h-16 text-lg border-0 bg-transparent focus:ring-0 px-6"
+                  />
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={isAnalyzing || !url.trim()}
+                    className="h-14 px-8 m-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105"
+                  >
+                    {isAnalyzing ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-5 h-5 mr-2" />
+                        Analyze
+                      </>
+                    )}
+                  </Button>
+                  {videoInfo && (
+                    <Button
+                      onClick={handleDownload}
+                      disabled={isAnalyzing}
+                      className="h-14 px-8 m-1 bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105"
+                    >
                       <Download className="w-5 h-5 mr-2" />
                       Download
-                    </>
+                    </Button>
                   )}
+                </div>
+              </div>
+            </div>
+
+            {/* Download Location Selection */}
+            <div className="space-y-4">
+              <h3 className="text-xl font-semibold text-gray-800 flex items-center text-black">
+                <FolderOpen className="w-5 h-5 mr-2" />
+                Download Location
+              </h3>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <span className="text-sm text-gray-600">Current location:</span>
+                  <div className="font-medium text-gray-800">{downloadLocation}</div>
+                </div>
+                <Button
+                  onClick={handleSelectDownloadLocation}
+                  variant="outline"
+                  className="px-4 py-2"
+                >
+                  <FolderOpen className="w-4 h-4 mr-2" />
+                  Change Location
                 </Button>
               </div>
             </div>
 
-            {/* Platform Support with Animated Badges */}
-            <div className="text-center">
-              <p className="text-sm text-modern-muted mb-3">Supports 1000+ platforms including:</p>
-              <div className="flex flex-wrap justify-center gap-3">
-                <Badge className="bg-red-500 text-white px-3 py-1 rounded-full animate-float" style={{animationDelay: '0s'}}>
-                  <Camera className="w-4 h-4 mr-1" />
-                  YouTube
-                </Badge>
-                <Badge className="bg-purple-500 text-white px-3 py-1 rounded-full animate-float" style={{animationDelay: '0.5s'}}>
-                  <Play className="w-4 h-4 mr-1" />
-                  Instagram
-                </Badge>
-                <Badge className="bg-black text-white px-3 py-1 rounded-full animate-float" style={{animationDelay: '1s'}}>
-                  🎵 TikTok
-                </Badge>
-                <Badge className="bg-blue-500 text-white px-3 py-1 rounded-full animate-float" style={{animationDelay: '1.5s'}}>
-                  📺 Vimeo
-                </Badge>
-                <Badge className="bg-orange-500 text-white px-3 py-1 rounded-full animate-float" style={{animationDelay: '2s'}}>
-                  🚀 +996 more
-                </Badge>
+            {/* Format Selection */}
+            <div className="space-y-4">
+              <h3 className="text-xl font-semibold text-gray-800 flex items-center text-black">
+                <Palette className="w-5 h-5 mr-2" />
+                Output Format
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                {formatOptions.map((format) => (
+                  <button
+                    key={format.value}
+                    type="button"
+                    onClick={() => setSelectedFormat(format.value)}
+                    className={`p-4 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
+                      selectedFormat === format.value
+                        ? `${format.color} text-white border-transparent shadow-lg`
+                        : "bg-white border-gray-200 hover:border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
+                    }`}
+                  >
+                    <format.icon className="w-6 h-6 mx-auto mb-2" />
+                    <div className="text-sm font-medium">{format.label}</div>
+                  </button>
+                ))}
               </div>
             </div>
-          </form>
+
+            {/* Quality Selection - Direct Download on Click */}
+            {(selectedFormat === "mp4" || selectedFormat === "webm") && (
+              <div className="space-y-4">
+                <h3 className="text-xl font-semibold text-gray-800 flex items-center text-black">
+                  <Target className="w-5 h-5 mr-2" />
+                  Video Quality
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {qualityOptions.map((quality) => (
+                    <button
+                      key={quality.value}
+                      type="button"
+                      onClick={() => {
+                        setSelectedQuality(quality.value);
+                      }}
+                      className={`p-4 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
+                        selectedQuality === quality.value
+                          ? `bg-gradient-to-r ${quality.gradient} text-white border-transparent shadow-lg`
+                          : "bg-white border-gray-200 hover:border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
+                      }`}
+                    >
+                      <quality.icon className="w-5 h-5 mx-auto mb-2" />
+                      <div className="text-sm font-medium">{quality.label}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Advanced Options Toggle */}
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => setIsAdvancedMode(!isAdvancedMode)}
+                className="flex items-center px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors duration-300"
+              >
+                <Settings className="w-5 h-5 mr-2" />
+                Advanced Options
+                {isAdvancedMode ? <ChevronUp className="w-4 h-4 ml-2" /> : <ChevronDown className="w-4 h-4 ml-2" />}
+              </button>
+            </div>
+
+            {/* Advanced Options Panel */}
+            {isAdvancedMode && (
+              <div className="bg-gray-50 rounded-2xl p-6 space-y-6 border-2 border-gray-200">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4 text-black">Advanced Configuration</h3>
+                
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Time Range */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700 flex items-center text-black">
+                      <Scissors className="w-4 h-4 mr-2" />
+                      Trim Video
+                    </label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="time"
+                        step="1"
+                        placeholder="Start"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        className="text-sm"
+                      />
+                      <Input
+                        type="time"
+                        step="1"
+                        placeholder="End"
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                        className="text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Custom Filename */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700 flex items-center text-black">
+                      <FileText className="w-4 h-4 mr-2" />
+                      Custom Filename
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="Enter custom filename..."
+                      value={customFilename}
+                      onChange={(e) => setCustomFilename(e.target.value)}
+                      className="text-sm"
+                    />
+                  </div>
+
+                  {/* Audio/Video Codecs */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700 text-black">Codec Settings</label>
+                    <div className="space-y-2">
+                      <select 
+                        value={audioCodec} 
+                        onChange={(e) => setAudioCodec(e.target.value)}
+                        className="w-full p-2 border rounded-lg text-sm"
+                      >
+                        <option value="mp3">MP3 Audio</option>
+                        <option value="aac">AAC Audio</option>
+                        <option value="flac">FLAC Audio</option>
+                        <option value="opus">Opus Audio</option>
+                      </select>
+                      <select 
+                        value={videoCodec} 
+                        onChange={(e) => setVideoCodec(e.target.value)}
+                        className="w-full p-2 border rounded-lg text-sm"
+                      >
+                        <option value="h264">H.264</option>
+                        <option value="h265">H.265/HEVC</option>
+                        <option value="vp9">VP9</option>
+                        <option value="av1">AV1</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Additional Options */}
+                <div className="flex flex-wrap gap-4">
+                  {[
+                    { key: 'subtitles', label: 'Download Subtitles', state: subtitles, setState: setSubtitles },
+                    { key: 'thumbnail', label: 'Save Thumbnail', state: thumbnail, setState: setThumbnail },
+                    { key: 'metadata', label: 'Preserve Metadata', state: metadata, setState: setMetadata }
+                  ].map((option) => (
+                    <label key={option.key} className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={option.state}
+                        onChange={(e) => option.setState(e.target.checked)}
+                        className="mr-2 w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Batch Download Section */}
+          <div className="border-t pt-6">
+            <button
+              onClick={() => setShowBatchMode(!showBatchMode)}
+              className="flex items-center text-lg font-semibold text-gray-800 hover:text-blue-600 transition-colors"
+            >
+              <Link2 className="w-5 h-5 mr-2" />
+              Batch Download Mode
+              {showBatchMode ? <ChevronUp className="w-4 h-4 ml-2" /> : <ChevronDown className="w-4 h-4 ml-2" />}
+            </button>
+            
+            {showBatchMode && (
+              <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                <textarea
+                  placeholder="Paste multiple URLs (one per line)..."
+                  value={batchUrls}
+                  onChange={(e) => setBatchUrls(e.target.value)}
+                  rows={6}
+                  className="w-full p-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <Button 
+                  onClick={handleBatchDownload}
+                  className="mt-3 bg-blue-500 hover:bg-blue-600 text-white"
+                  disabled={!batchUrls.trim()}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download All ({batchUrls.split('\n').filter((u: string) => u.trim()).length} URLs)
+                </Button>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
-      {/* Instagram Alternatives Modal */}
-      {showAlternatives && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="max-w-2xl w-full">
-            <AlternativeMethods 
-              url={url} 
-              onClose={() => {
-                setShowAlternatives(false);
-                setUrl("");
-              }} 
-            />
-          </div>
-        </div>
+      {/* Video Information Card */}
+      {videoInfo !== null && (
+        <Card className="bg-white shadow-lg border-0">
+          <CardContent className="p-6">
+            <div className="flex items-start space-x-6">
+              <img 
+                src={(videoInfo as VideoInfo).thumbnail} 
+                alt="Video thumbnail" 
+                className="w-32 h-24 object-cover rounded-lg shadow-md"
+              />
+              <div className="flex-1">
+                <h3 className="text-xl font-semibold text-gray-800 mb-2 text-black">{(videoInfo as VideoInfo).title}</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                  <div className="flex items-center">
+                    <Clock className="w-4 h-4 mr-1" />
+                    Duration: {(videoInfo as VideoInfo).duration}
+                  </div>
+                  <div className="flex items-center">
+                    <Globe className="w-4 h-4 mr-1" />
+                    Platform: {(videoInfo as VideoInfo).platform}
+                  </div>
+                  <div className="flex items-center">
+                    <Download className="w-4 h-4 mr-1" />
+                    Size: {(videoInfo as VideoInfo).fileSize}
+                  </div>
+                  <div className="flex items-center">
+                    <Play className="w-4 h-4 mr-1" />
+                    Views: {(videoInfo as VideoInfo).views}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => copyToClipboard((videoInfo as VideoInfo).title)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Copy title"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+            </div>
+          </CardContent>
+        </Card>
       )}
+
+      {infoError && (
+        <Card className="bg-red-50 border-0 shadow-lg">
+          <CardContent className="p-6 text-red-700">{infoError}</CardContent>
+        </Card>
+      )}
+
+      {/* Feature Highlights */}
+      <div className="grid md:grid-cols-3 gap-6">
+        <Card className="text-center p-6 bg-gradient-to-br from-blue-50 to-blue-100 border-0">
+          <Zap className="w-12 h-12 mx-auto mb-4 text-blue-600" />
+          <h3 className="text-lg font-semibold mb-2 text-black">Lightning Fast</h3>
+          <p className="text-gray-600 text-sm">Advanced multi-threaded downloading for maximum speed</p>
+        </Card>
+
+        <Card className="text-center p-6 bg-gradient-to-br from-purple-50 to-purple-100 border-0">
+          <Crown className="w-12 h-12 mx-auto mb-4 text-purple-600" />
+          <h3 className="text-lg font-semibold mb-2 text-black">Premium Quality</h3>
+          <p className="text-gray-600 text-sm">Support for 4K, HDR, and lossless audio formats</p>
+        </Card>
+
+        <Card className="text-center p-6 bg-gradient-to-br from-green-50 to-green-100 border-0">
+          <Globe className="w-12 h-12 mx-auto mb-4 text-green-600" />
+          <h3 className="text-lg font-semibold mb-2 text-black">Universal Support</h3>
+          <p className="text-gray-600 text-sm">Works with 1000+ platforms and video streaming sites</p>
+        </Card>
+      </div>
     </div>
   );
 }

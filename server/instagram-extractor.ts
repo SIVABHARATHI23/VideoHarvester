@@ -1,5 +1,6 @@
 import { spawn } from "child_process";
 import axios from "axios";
+import fs from "fs";
 
 interface InstagramMediaInfo {
   title: string;
@@ -15,7 +16,7 @@ export async function extractInstagramInfo(url: string): Promise<InstagramMediaI
   try {
     const result = await tryWithBrowserCookies(url);
     if (result.success) return result;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Browser cookies method failed:', error.message);
   }
 
@@ -23,7 +24,7 @@ export async function extractInstagramInfo(url: string): Promise<InstagramMediaI
   try {
     const result = await tryYtDlpExtraction(url);
     if (result.success) return result;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Standard yt-dlp method failed:', error.message);
   }
 
@@ -31,7 +32,7 @@ export async function extractInstagramInfo(url: string): Promise<InstagramMediaI
   try {
     const result = await tryMobileExtraction(url);
     if (result.success) return result;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Mobile extraction failed:', error.message);
   }
 
@@ -39,7 +40,7 @@ export async function extractInstagramInfo(url: string): Promise<InstagramMediaI
   try {
     const result = await tryEmbedExtraction(url);
     if (result.success) return result;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Embed extraction failed:', error.message);
   }
 
@@ -47,7 +48,7 @@ export async function extractInstagramInfo(url: string): Promise<InstagramMediaI
   try {
     const result = await tryGalleryDlExtraction(url);
     if (result.success) return result;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Gallery-dl method failed:', error.message);
   }
 
@@ -71,7 +72,9 @@ async function tryWithBrowserCookies(url: string): Promise<InstagramMediaInfo> {
       url
     ];
 
-    const process = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    if (fs.existsSync('www.instagram.com_cookies.txt')) { args.push('--cookies', 'www.instagram.com_cookies.txt'); }
+
+    const process = spawn('yt-dlp', args);
     
     let output = '';
     let error = '';
@@ -120,7 +123,9 @@ async function tryYtDlpExtraction(url: string): Promise<InstagramMediaInfo> {
       url
     ];
 
-    const process = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    if (fs.existsSync('www.instagram.com_cookies.txt')) { args.push('--cookies', 'www.instagram.com_cookies.txt'); }
+
+    const process = spawn('yt-dlp', args);
     
     let output = '';
     let error = '';
@@ -165,7 +170,9 @@ async function tryMobileExtraction(url: string): Promise<InstagramMediaInfo> {
       url
     ];
 
-    const process = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    if (fs.existsSync('www.instagram.com_cookies.txt')) { args.push('--cookies', 'www.instagram.com_cookies.txt'); }
+
+    const process = spawn('yt-dlp', args);
     
     let output = '';
     
@@ -212,7 +219,9 @@ async function tryEmbedExtraction(url: string): Promise<InstagramMediaInfo> {
       embedUrl
     ];
 
-    const process = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    if (fs.existsSync('www.instagram.com_cookies.txt')) { args.push('--cookies', 'www.instagram.com_cookies.txt'); }
+
+    const process = spawn('yt-dlp', args);
     
     let output = '';
     
@@ -253,7 +262,9 @@ async function tryGalleryDlExtraction(url: string): Promise<InstagramMediaInfo> 
       url
     ];
 
-    const process = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    if (fs.existsSync('www.instagram.com_cookies.txt')) { args.push('--cookies', 'www.instagram.com_cookies.txt'); }
+
+    const process = spawn('yt-dlp', args);
     
     let output = '';
     
@@ -288,7 +299,7 @@ export async function downloadInstagramVideo(item: any, outputPath: string): Pro
   try {
     const result = await tryBrowserCookiesDownload(item, outputPath);
     if (result) return true;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Browser cookies download failed:', error.message);
   }
 
@@ -296,7 +307,7 @@ export async function downloadInstagramVideo(item: any, outputPath: string): Pro
   try {
     const result = await tryAdvancedDownload(item, outputPath);
     if (result) return true;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Advanced download method failed:', error.message);
   }
 
@@ -304,7 +315,7 @@ export async function downloadInstagramVideo(item: any, outputPath: string): Pro
   try {
     const result = await tryFormatSpecificDownload(item, outputPath);
     if (result) return true;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Format-specific download failed:', error.message);
   }
 
@@ -327,7 +338,9 @@ async function tryBrowserCookiesDownload(item: any, outputPath: string): Promise
       item.url
     ];
 
-    const process = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    if (fs.existsSync('www.instagram.com_cookies.txt')) { args.push('--cookies', 'www.instagram.com_cookies.txt'); }
+
+    const process = spawn('yt-dlp', args);
     
     const timeout = setTimeout(() => {
       process.kill('SIGKILL');
@@ -358,7 +371,9 @@ async function tryAdvancedDownload(item: any, outputPath: string): Promise<boole
       item.url
     ];
 
-    const process = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    if (fs.existsSync('www.instagram.com_cookies.txt')) { args.push('--cookies', 'www.instagram.com_cookies.txt'); }
+
+    const process = spawn('yt-dlp', args);
     
     const timeout = setTimeout(() => {
       process.kill('SIGKILL');
@@ -385,7 +400,9 @@ async function tryFormatSpecificDownload(item: any, outputPath: string): Promise
       item.url
     ];
 
-    const process = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    if (fs.existsSync('www.instagram.com_cookies.txt')) { args.push('--cookies', 'www.instagram.com_cookies.txt'); }
+
+    const process = spawn('yt-dlp', args);
     
     const timeout = setTimeout(() => {
       process.kill('SIGKILL');

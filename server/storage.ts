@@ -33,7 +33,7 @@ export class MemStorage implements IStorage {
       id: 1,
       quality: "720p",
       format: "mp4",
-      downloadPath: "~/Downloads/Videos",
+      downloadPath: "Downloads/Videos",
       autoPlay: false,
       theme: "light",
       notifications: true,
@@ -66,6 +66,7 @@ export class MemStorage implements IStorage {
       estimatedTime: insertItem.estimatedTime ?? null,
       filePath: insertItem.filePath ?? null,
       errorMessage: insertItem.errorMessage ?? null,
+      downloadLocation: insertItem.downloadLocation ?? null,
       id, 
       createdAt: new Date()
     };
@@ -91,6 +92,17 @@ export class MemStorage implements IStorage {
     for (const [id, item] of entries) {
       if (item.status === "completed") {
         this.downloadItems.delete(id);
+      }
+    }
+  }
+
+  // Keep only the two most recent downloads
+  async keepOnlyRecentDownloads(count: number = 2): Promise<void> {
+    const all = await this.getAllDownloadItems();
+    if (all.length > count) {
+      const toRemove = all.slice(count); // keep the first 'count' (already sorted by createdAt desc)
+      for (const item of toRemove) {
+        this.downloadItems.delete(item.id);
       }
     }
   }

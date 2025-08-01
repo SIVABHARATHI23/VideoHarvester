@@ -16,7 +16,7 @@ export async function downloadInstagramBypass(url: string, downloadPath: string,
   try {
     const apiResult = await tryRapidSaveAPI(url, downloadPath, itemId);
     if (apiResult.success) return apiResult;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Rapid-save API failed:', error);
   }
 
@@ -24,7 +24,7 @@ export async function downloadInstagramBypass(url: string, downloadPath: string,
   try {
     const instaResult = await tryInstaDownloader(url, downloadPath, itemId);
     if (instaResult.success) return instaResult;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Insta-downloader failed:', error);
   }
 
@@ -32,7 +32,7 @@ export async function downloadInstagramBypass(url: string, downloadPath: string,
   try {
     const ytdlpResult = await tryAlternativeYtDlp(url, downloadPath, itemId);
     if (ytdlpResult.success) return ytdlpResult;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Alternative yt-dlp failed:', error);
   }
 
@@ -97,7 +97,7 @@ async function tryRapidSaveAPI(url: string, downloadPath: string, itemId: number
     }
 
     return { success: false, error: 'No video URL found in response' };
-  } catch (error) {
+  } catch (error: any) {
     return { success: false, error: `API request failed: ${error.message}` };
   }
 }
@@ -125,7 +125,9 @@ async function tryInstaDownloader(url: string, downloadPath: string, itemId: num
       url
     ];
 
-    const process = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    if (fs.existsSync('www.instagram.com_cookies.txt')) { args.push('--cookies', 'www.instagram.com_cookies.txt'); }
+
+    const process = spawn('yt-dlp', args);
     let success = false;
 
     process.on('close', (code) => {
@@ -182,7 +184,9 @@ async function tryAlternativeYtDlp(url: string, downloadPath: string, itemId: nu
       url
     ];
 
-    const process = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    if (fs.existsSync('www.instagram.com_cookies.txt')) { args.push('--cookies', 'www.instagram.com_cookies.txt'); }
+
+    const process = spawn('yt-dlp', args);
     let success = false;
 
     process.on('close', (code) => {

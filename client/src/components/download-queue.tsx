@@ -1,392 +1,686 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { ListEnd, Play, CheckCircle, Clock, X, FolderOpen, Pause, Download, Music, Video } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
+import { 
+  Download, Music, Video, CheckCircle, Clock, X, FolderOpen, 
+  Pause, AlertCircle, Search, Filter, SortAsc, SortDesc, 
+  RefreshCw, Trash2, Archive, Eye, EyeOff, MoreVertical,
+  FileText, Calendar, Zap, Globe, HardDrive, Star,
+  TrendingUp, BarChart3, Activity, Users, Wifi, WifiOff
+} from "lucide-react";
 import { useWebSocket } from "@/hooks/use-websocket";
-import { VideoPlayer } from "@/components/video-player";
-import type { DownloadItem, WebSocketMessage } from "@shared/schema";
+import type { WebSocketMessage } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
 
-export function DownloadQueue() {
+interface Download {
+  id: number;
+  title: string;
+  url: string;
+  status: string;
+  progress: number;
+  format: string;
+  quality: string;
+  fileSize: string;
+  downloadSpeed?: string;
+  estimatedTime?: string;
+  platform: string;
+  thumbnail: string;
+  addedAt: Date;
+  duration: string;
+  views: string;
+  errorMessage?: string;
+}
+
+export default function AdvancedDownloadQueue() {
+  // State management
+  const [downloads, setDownloads] = useState<Download[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [sortBy, setSortBy] = useState("newest");
+  const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+  const [viewMode, setViewMode] = useState("detailed");
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [retryAttempts, setRetryAttempts] = useState<{ [key: number]: number }>({});
+  
+  // Statistics
+  const [stats, setStats] = useState({
+    totalDownloads: 0,
+    completedDownloads: 0,
+    activeDownloads: 0,
+    failedDownloads: 0,
+    totalSize: "0 MB",
+    avgSpeed: "0 MB/s"
+  });
+
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [selectedVideo, setSelectedVideo] = useState<{ title: string; fileName: string } | null>(null);
 
-  const { data: downloads = [], isLoading } = useQuery<DownloadItem[]>({
-    queryKey: ["/api/downloads"],
-  });
+  // Mock data with advanced features
+  useEffect(() => {
+    setIsLoading(true);
+    fetch('/api/downloads')
+      .then(res => res.json())
+      .then((data: Download[]) => {
+        // Convert string dates to Date objects if needed
+        const downloads = data.map(d => ({
+          ...d,
+          addedAt: d.addedAt ? new Date(d.addedAt) : new Date(),
+        }));
+        setDownloads(downloads);
+        setIsLoading(false);
+        // Calculate stats
+        const stats = {
+          totalDownloads: downloads.length,
+          completedDownloads: downloads.filter(d => d.status === "completed").length,
+          activeDownloads: downloads.filter(d => d.status === "downloading").length,
+          failedDownloads: downloads.filter(d => d.status === "failed").length,
+          totalSize: downloads.reduce((acc, d) => {
+            const size = parseFloat((d.fileSize || '').replace(/[^\d.]/g, ''));
+            return acc + (isNaN(size) ? 0 : size);
+          }, 0) + ' MB',
+          avgSpeed: 'N/A'
+        };
+        setStats(stats);
+      })
+      .catch(() => setIsLoading(false));
+  }, []);
 
-  const cancelMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const response = await apiRequest("POST", `/api/downloads/${id}/cancel`);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/downloads"] });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const response = await apiRequest("DELETE", `/api/downloads/${id}`);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/downloads"] });
-    },
-  });
-
-  const clearCompletedMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/downloads/clear-completed");
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/downloads"] });
-      toast({
-        title: "Cleared",
-        description: "Completed downloads have been cleared.",
-      });
-    },
-  });
-
-  const openFolderMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/open-folder");
-      return response.json();
-    },
-    onSuccess: (data) => {
-      toast({
-        title: "Folder Opened",
-        description: data.message,
-      });
-    },
-  });
-
-  // Handle WebSocket messages
+  // WebSocket live updates
   useWebSocket((message: WebSocketMessage) => {
-    queryClient.invalidateQueries({ queryKey: ["/api/downloads"] });
-    
-    if (message.type === "download_complete") {
-      toast({
-        title: "Download Complete",
-        description: "Your video has been downloaded successfully!",
-      });
-    } else if (message.type === "download_error") {
-      toast({
-        title: "Download Failed",
-        description: message.error,
-        variant: "destructive",
+    if (["download_progress", "download_complete", "download_error", "download_started"].includes(message.type)) {
+      // Refetch downloads from backend
+      fetch('/api/downloads')
+        .then(res => res.json())
+        .then((data: Download[]) => {
+          const downloads = data.map(d => ({
+            ...d,
+            addedAt: d.addedAt ? new Date(d.addedAt) : new Date(),
+          }));
+          setDownloads(downloads);
       });
     }
   });
 
+  // Network status monitoring
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Filter and sort downloads
+  const filteredDownloads = downloads
+    .filter((download: Download) => {
+      const matchesSearch = download.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           download.platform.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesFilter = filterStatus === "all" || (download.status && download.status === filterStatus);
+      return matchesSearch && matchesFilter;
+    })
+    .sort((a: Download, b: Download) => {
+      switch (sortBy) {
+        case "newest":
+          return new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime();
+        case "oldest":
+          return new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime();
+        case "size":
+          return parseFloat(b.fileSize) - parseFloat(a.fileSize);
+        case "status":
+          return a.status.localeCompare(b.status);
+        default:
+          return 0;
+      }
+    });
+
+  // Action handlers
+  const handleSelectItem = (id: number) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedItems(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedItems.size === filteredDownloads.length) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(filteredDownloads.map((d: Download) => d.id)));
+    }
+  };
+
+  const handleBulkAction = async (action: string) => {
+    if (action === "delete") {
+      const ids = Array.from(selectedItems);
+      let successCount = 0;
+      for (const id of ids) {
+        try {
+          const res = await fetch(`/api/downloads/${id}`, { method: 'DELETE' });
+          if (res.ok) successCount++;
+        } catch {}
+      }
+      if (successCount > 0) {
+        toast({ title: 'Deleted', description: `Deleted ${successCount} download(s).` });
+      } else {
+        toast({ title: 'Delete failed', description: 'Could not delete selected downloads.', variant: 'destructive' });
+      }
+      // Refetch downloads
+      fetch('/api/downloads')
+        .then(res => res.json())
+        .then((data: Download[]) => {
+          const downloads = data.map(d => ({
+            ...d,
+            addedAt: d.addedAt ? new Date(d.addedAt) : new Date(),
+          }));
+          setDownloads(downloads);
+        });
+    }
+    setSelectedItems(new Set());
+  };
+
+  const handleRetry = (id: number) => {
+    setRetryAttempts(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
+    console.log(`Retrying download ${id}`);
+  };
+
+  const handleRemoveDownload = async (id: number) => {
+    try {
+      const res = await fetch(`/api/downloads/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to remove download');
+      toast({ title: 'Removed', description: 'Download removed from queue.' });
+      // Refetch downloads
+      fetch('/api/downloads')
+        .then(res => res.json())
+        .then((data: Download[]) => {
+          const downloads = data.map(d => ({
+            ...d,
+            addedAt: d.addedAt ? new Date(d.addedAt) : new Date(),
+          }));
+          setDownloads(downloads);
+        });
+    } catch (err) {
+      toast({ title: 'Failed to remove', description: 'Could not remove download.', variant: 'destructive' });
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "downloading":
-        return <Pause className="w-4 h-4 text-material-blue" />;
+        return <Activity className="w-4 h-4 text-blue-500 animate-pulse" />;
       case "completed":
-        return <CheckCircle className="w-4 h-4 text-material-success" />;
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
       case "queued":
-        return <Clock className="w-4 h-4 text-material-warning" />;
+        return <Clock className="w-4 h-4 text-yellow-500" />;
       case "failed":
-        return <X className="w-4 h-4 text-material-error" />;
+        return <AlertCircle className="w-4 h-4 text-red-500" />;
       default:
-        return <Clock className="w-4 h-4 text-material-gray-light" />;
+        return <Clock className="w-4 h-4 text-gray-400" />;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "downloading":
-        return "bg-blue-50 border-blue-200";
+        return "bg-blue-500";
       case "completed":
-        return "bg-green-50 border-green-200";
+        return "bg-green-500";
+      case "queued":
+        return "bg-yellow-500";
       case "failed":
-        return "bg-red-50 border-red-200";
+        return "bg-red-500";
       default:
-        return "border-gray-200";
+        return "bg-gray-400";
+    }
+  };
+
+  const getPlatformIcon = (platform: string) => {
+    switch (platform.toLowerCase()) {
+      case "youtube":
+        return "🎥";
+      case "instagram":
+        return "📸";
+      case "tiktok":
+        return "🎵";
+      case "twitter":
+        return "🐦";
+      default:
+        return "🌐";
     }
   };
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="glass-card border-0 p-6">
-          <div className="animate-pulse space-y-4">
-            <div className="h-6 bg-modern-surface-alt rounded-lg w-1/3"></div>
-            <div className="space-y-4">
-              <div className="h-24 bg-modern-surface-alt rounded-xl"></div>
-              <div className="h-24 bg-modern-surface-alt rounded-xl"></div>
-              <div className="h-24 bg-modern-surface-alt rounded-xl"></div>
-            </div>
-          </div>
+      <div className="max-w-7xl mx-auto p-6 space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="p-6">
+                <div className="h-6 bg-gray-200 rounded mb-4"></div>
+                <div className="h-8 bg-gray-200 rounded"></div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
+        <Card className="animate-pulse">
+          <CardContent className="p-6">
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-24 bg-gray-200 rounded"></div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Modern Header with Glass Effect */}
-      <div className="glass-card border-0 p-6 animate-slide-up">
+    <div className="max-w-7xl mx-auto p-6 space-y-6">
+      {/* Network Status Alert */}
+      {!isOnline && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="p-4">
+            <div className="flex items-center">
+              <WifiOff className="w-5 h-5 text-orange-600 mr-3" />
+              <div>
+                <h4 className="font-semibold text-orange-800">You're offline</h4>
+                <p className="text-sm text-orange-700">Downloads will resume when connection is restored.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Statistics Dashboard */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-700">Total Downloads</p>
+                <p className="text-3xl font-bold text-blue-900">{stats.totalDownloads}</p>
+              </div>
+              <Download className="w-8 h-8 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-green-700">Completed</p>
+                <p className="text-3xl font-bold text-green-900">{stats.completedDownloads}</p>
+              </div>
+              <CheckCircle className="w-8 h-8 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-yellow-700">Active</p>
+                <p className="text-3xl font-bold text-yellow-900">{stats.activeDownloads}</p>
+              </div>
+              <Activity className="w-8 h-8 text-yellow-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+          <CardContent className="p-6">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-gradient-modern rounded-lg">
-              <Download className="w-6 h-6 text-white" />
+              <div>
+                <p className="text-sm font-medium text-purple-700">Total Size</p>
+                <p className="text-3xl font-bold text-purple-900">{stats.totalSize}</p>
+              </div>
+              <HardDrive className="w-8 h-8 text-purple-600" />
             </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Advanced Controls */}
+      <Card className="bg-white shadow-lg">
+        <CardHeader className="pb-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold text-modern-text">Download Queue</h2>
-              <p className="text-sm text-modern-muted">
-                {downloads.length} items • {downloads.filter(d => d.status === "completed").length} completed
-              </p>
+              <CardTitle className="text-2xl font-bold text-black flex items-center">
+                <Archive className="w-6 h-6 mr-3 text-blue-600" />
+                Download Queue
+                <Badge variant="secondary" className="ml-3">
+                  {filteredDownloads.length} items
+                </Badge>
+              </CardTitle>
+              <p className="text-gray-600 mt-1">Manage your downloads with advanced controls</p>
             </div>
-          </div>
-          <div className="flex space-x-3">
+            <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => openFolderMutation.mutate()}
-              className="glass-button hover-lift border-modern-border"
+                onClick={() => console.log("Opening folder")}
+                className="flex items-center"
             >
               <FolderOpen className="w-4 h-4 mr-2" />
               Open Folder
             </Button>
-            {downloads.some(d => d.status === "completed") && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => clearCompletedMutation.mutate()}
-                className="glass-button hover-lift border-modern-border text-modern-error hover:bg-modern-error hover:text-white"
+                onClick={() => console.log("Refreshing")}
+                className="flex items-center"
               >
-                <X className="w-4 h-4 mr-2" />
-                Clear Completed
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
               </Button>
-            )}
+            </div>
           </div>
-        </div>
+        </CardHeader>
+
+        <CardContent className="space-y-6">
+          {/* Search and Filter Controls */}
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Search downloads by title or platform..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
       </div>
 
-      {/* Downloads List */}
-      <div className="space-y-4">
-        {downloads.length === 0 ? (
-          <div className="glass-card border-0 p-12 text-center animate-slide-up">
-            <div className="w-20 h-20 mx-auto mb-6 bg-gradient-modern rounded-full flex items-center justify-center">
-              <Download className="w-10 h-10 text-white" />
-            </div>
-            <h3 className="text-xl font-bold text-modern-text mb-2">No downloads yet</h3>
-            <p className="text-modern-muted">Start by adding a video URL above to begin downloading!</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {downloads.map((download, index) => (
-              <div
-                key={download.id}
-                className="glass-card border-0 p-6 hover-lift animate-slide-up"
-                style={{animationDelay: `${index * 0.1}s`}}
+            <div className="flex gap-2">
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-3 py-2 border rounded-lg bg-white text-sm text-black dark:bg-gray-800 dark:text-white"
               >
-                <div className="flex items-start space-x-4">
-                  <div className="w-20 h-16 bg-gradient-surface rounded-xl flex items-center justify-center flex-shrink-0 border border-modern-border">
-                    {download.format === 'mp3' ? (
-                      <Music className="w-8 h-8 text-modern-accent" />
-                    ) : (
-                      <Video className="w-8 h-8 text-modern-primary" />
-                    )}
+                <option value="all" className="text-black dark:text-white">All Status</option>
+                <option value="downloading" className="text-black dark:text-white">Downloading</option>
+                <option value="completed" className="text-black dark:text-white">Completed</option>
+                <option value="failed" className="text-black dark:text-white">Failed</option>
+                <option value="queued" className="text-black dark:text-white">Queued</option>
+              </select>
+              
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-3 py-2 border rounded-lg bg-white text-sm text-black dark:bg-gray-800 dark:text-white"
+              >
+                <option value="newest" className="text-black dark:text-white">Newest First</option>
+                <option value="oldest" className="text-black dark:text-white">Oldest First</option>
+                <option value="size" className="text-black dark:text-white">By Size</option>
+                <option value="status" className="text-black dark:text-white">By Status</option>
+              </select>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setViewMode(viewMode === "detailed" ? "compact" : "detailed")}
+              >
+                {viewMode === "detailed" ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </Button>
+            </div>
+          </div>
+
+          {/* Bulk Actions */}
+          {selectedItems.size > 0 && (
+            <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center">
+                <span className="text-sm font-medium text-blue-900">
+                  {selectedItems.size} item(s) selected
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => handleBulkAction("download")}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Download
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => handleBulkAction("retry")}>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Retry
+                </Button>
+                <Button size="sm" variant="destructive" onClick={() => handleBulkAction("delete")}>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Select All Checkbox */}
+          {filteredDownloads.length > 0 && (
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                checked={selectedItems.size === filteredDownloads.length}
+                onChange={handleSelectAll}
+                className="mr-3 w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <label className="text-sm text-gray-700">Select all visible items</label>
+            </div>
+          )}
+
+          {/* Downloads List */}
+          <div className="space-y-4">
+            {filteredDownloads.length === 0 ? (
+              <div className="text-center py-12">
+                <Archive className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                <h3 className="text-xl font-semibold text-gray-700 mb-2">No downloads found</h3>
+                <p className="text-gray-500">
+                  {searchTerm || filterStatus !== "all" 
+                    ? "Try adjusting your search or filter criteria" 
+                    : "Start downloading videos to see them here"
+                  }
+                </p>
+              </div>
+            ) : (
+              filteredDownloads.map((download: Download) => (
+                <Card key={download.id} className="hover:shadow-md transition-shadow duration-200">
+                  <CardContent className="p-6">
+                    <div className="flex items-start gap-4">
+                      {/* Selection Checkbox */}
+                      <input
+                        type="checkbox"
+                        checked={selectedItems.has(download.id)}
+                        onChange={() => handleSelectItem(download.id)}
+                        className="mt-2 w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+
+                      {/* Thumbnail or Icon */}
+                      <div className="relative w-24 h-16 flex items-center justify-center bg-gray-100 rounded-lg">
+                        {download.thumbnail && download.thumbnail.trim() !== '' ? (
+                          <img
+                            src={download.thumbnail}
+                            alt="Thumbnail"
+                            className="w-24 h-16 object-cover rounded-lg"
+                          />
+                        ) : (
+                          download.format && ["mp3", "wav", "flac", "aac", "opus"].includes(download.format.toLowerCase()) ? (
+                            <Music className="w-10 h-10 text-green-500" />
+                          ) : (
+                            <Video className="w-10 h-10 text-blue-500" />
+                          )
+                        )}
+                        <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
+                          <span className="text-white text-xs font-medium">{download.duration}</span>
+                        </div>
+                        <div className="absolute -top-2 -right-2">
+                          <span className="text-lg">{getPlatformIcon(download.platform)}</span>
+                        </div>
                   </div>
                   
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-modern-text text-lg truncate">
-                      {download.title || "Loading title..."}
+                            <h3 className="font-semibold text-gray-900 text-lg mb-1 truncate">
+                              {download.title}
                     </h3>
-                    <p className="text-sm text-modern-muted truncate mb-2">
+                            <p className="text-sm text-gray-500 truncate mb-2">
                       {download.url}
                     </p>
-                    <div className="flex items-center space-x-3">
-                      <Badge className={`${download.format === 'mp3' ? 'bg-modern-accent' : 'bg-modern-primary'} text-white px-2 py-1 text-xs`}>
-                        {download.format?.toUpperCase()}
+                            
+                            {/* Metadata */}
+                            <div className="flex flex-wrap items-center gap-3 mb-3">
+                              <Badge className={`${getStatusColor(download.status)} text-white text-xs`}>
+                                {download.status.charAt(0).toUpperCase() + download.status.slice(1)}
                       </Badge>
-                      {download.quality && (
-                        <Badge variant="outline" className="border-modern-border text-modern-muted text-xs">
-                          {download.quality}
+                              <Badge variant="outline" className="text-xs">
+                                {download.format?.toUpperCase()} • {download.quality}
                         </Badge>
-                      )}
-                      <Badge className={`${
-                        download.status === 'completed' ? 'bg-modern-accent' : 
-                        download.status === 'downloading' ? 'bg-modern-primary' : 
-                        download.status === 'failed' ? 'bg-modern-error' : 'bg-modern-warning'
-                      } text-white px-2 py-1 text-xs status-pulse`}>
-                        {download.status === 'downloading' ? '⚡ Downloading' : 
-                         download.status === 'completed' ? '✓ Complete' :
-                         download.status === 'failed' ? '✗ Failed' : '⏳ Queued'}
+                              <Badge variant="outline" className="text-xs">
+                                {download.fileSize}
                       </Badge>
+                              <span className="text-xs text-gray-500 flex items-center">
+                                <Calendar className="w-3 h-3 mr-1" />
+                                {download.addedAt.toLocaleTimeString()}
+                              </span>
+                              <span className="text-xs text-gray-500 flex items-center">
+                                <Users className="w-3 h-3 mr-1" />
+                                {download.views} views
+                              </span>
                     </div>
                     
+                            {/* Progress Bar for Downloading */}
                     {download.status === "downloading" && (
-                      <div className="mt-4">
-                        <div className="flex items-center justify-between text-sm mb-2">
-                          <span className="text-modern-text font-medium">
-                            Downloading...
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="font-medium text-gray-700">
+                                    Downloading... {download.progress}%
                           </span>
-                          <span className="text-modern-primary font-bold">
-                            {download.progress}%
-                          </span>
-                        </div>
-                        <div className="relative">
-                          <Progress value={download.progress || 0} className="h-3 bg-modern-surface-alt" />
-                          <div className="absolute inset-0 bg-gradient-modern opacity-80 rounded-full" 
-                               style={{width: `${download.progress || 0}%`}}></div>
-                        </div>
-                        <div className="flex items-center justify-between text-xs text-modern-muted mt-2">
+                                  <div className="flex items-center gap-4 text-xs text-gray-500">
                           <span className="flex items-center">
-                            ⚡ {download.downloadSpeed || "Calculating..."}
+                                      <TrendingUp className="w-3 h-3 mr-1" />
+                                      {download.downloadSpeed}
                           </span>
                           <span className="flex items-center">
-                            ⏱️ {download.estimatedTime || "Calculating..."}
+                                      <Clock className="w-3 h-3 mr-1" />
+                                      {download.estimatedTime}
                           </span>
                         </div>
+                                </div>
+                                <Progress 
+                                  value={download.progress} 
+                                  className="h-2 bg-gray-200"
+                                />
                       </div>
                     )}
                     
-                    {download.status !== "downloading" && (
-                      <div className="mt-3">
-                        <div className="flex items-center space-x-4 mb-2">
-                          <span className="flex items-center text-sm">
-                            {getStatusIcon(download.status)}
-                            <span className="ml-1 capitalize">{download.status}</span>
-                          </span>
-                          <span className="text-sm text-material-gray-light">
-                            {download.quality} {download.format?.toUpperCase()}
-                            {download.fileSize && ` • ${download.fileSize}`}
-                          </span>
-                        </div>
-                        
+                            {/* Error Message */}
                         {download.status === "failed" && download.errorMessage && (
-                          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                            <p className="text-sm text-red-800 whitespace-pre-line">
+                              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                                <p className="text-sm text-red-800 mb-2">
+                                  <AlertCircle className="w-4 h-4 inline mr-2" />
                               {download.errorMessage}
                             </p>
-                            {download.url.includes('instagram.com') && (
-                              <div className="mt-2 text-xs text-blue-600 border-t border-blue-200 pt-2">
-                                💡 <strong>Solution:</strong> Copy URL → Visit <a href="https://snapinsta.app" target="_blank" className="underline">snapinsta.app</a> → Paste URL → Download
-                              </div>
-                            )}
-                          </div>
-                        )}
+                                {retryAttempts[download.id] && (
+                                  <p className="text-xs text-red-600">
+                                    Retry attempts: {retryAttempts[download.id]}
+                                  </p>
+                                )}
                       </div>
                     )}
                   </div>
                   
-                  <div className="flex space-x-2">
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-2 ml-4">
                     {download.status === "completed" && (
                       <>
                         <Button 
                           size="sm"
-                          onClick={() => openFolderMutation.mutate()}
-                          disabled={openFolderMutation.isPending}
-                          className="glass-button hover-lift px-3 py-2 h-auto"
-                          title="Open Downloads Folder"
-                        >
-                          <FolderOpen className="w-4 h-4 mr-2 text-modern-primary" />
-                          <span className="text-xs">Folder</span>
-                        </Button>
-                        {download.format !== "mp3" && (
-                          <>
-                            <Button 
-                              size="sm"
-                              onClick={() => {
-                                // Use the download ID to construct the filename
-                                const fileName = `video_${download.id}.mp4`;
-                                setSelectedVideo({
-                                  title: download.title || 'Unknown Video',
-                                  fileName,
-                                  downloadId: download.id
-                                });
-                              }}
-                              className="bg-modern-primary hover:bg-modern-primary-dark text-white hover-lift px-3 py-2 h-auto animate-pulse-glow"
-                              title="Play Video"
-                            >
-                              <Play className="w-4 h-4 mr-2" />
-                              <span className="text-xs">Play</span>
+                                  onClick={async () => {
+                                    try {
+                                      const response = await fetch('/api/open-folder');
+                                      const data = await response.json();
+                                      if (data.success) {
+                                        // Try to open the folder using the File System Access API
+                                        if ('showDirectoryPicker' in window) {
+                                          try {
+                                            await (window as any).showDirectoryPicker();
+                                          } catch (error) {
+                                            console.log('Could not open folder picker, showing path instead');
+                                            alert(`Download folder: ${data.path}`);
+                                          }
+                                        } else {
+                                          alert(`Download folder: ${data.path}`);
+                                        }
+                                      } else {
+                                        alert('Could not open downloads folder');
+                                      }
+                                    } catch (error) {
+                                      console.error('Error opening folder:', error);
+                                      alert('Could not open downloads folder');
+                                    }
+                                  }}
+                                  className="bg-blue-500 hover:bg-blue-600 text-white"
+                                >
+                                  <FolderOpen className="w-4 h-4 mr-2" />
+                                  Folder
                             </Button>
                             <Button 
                               size="sm"
                               onClick={() => {
-                                // Use the download ID to trigger the download
                                 const link = document.createElement('a');
-                                link.href = `/api/video-download/${download.id}`;
-                                link.download = `${download.title || 'video'}.mp4`;
+                                    link.href = `/api/download/${download.id}`;
+                                    link.download = `${download.title}.${download.format}`;
                                 link.click();
                               }}
-                              className="bg-modern-accent hover:bg-modern-accent text-white hover-lift px-3 py-2 h-auto"
-                              title="Download Video File"
+                                  className="bg-green-500 hover:bg-green-600 text-white"
                             >
                               <Download className="w-4 h-4 mr-2" />
-                              <span className="text-xs">Download</span>
+                                  Save
                             </Button>
                           </>
                         )}
-                        {download.format === "mp3" && (
+                            
+                            {download.status === "failed" && (
                           <Button 
                             size="sm"
-                            onClick={() => {
-                              // Use the download ID to trigger the download
-                              const link = document.createElement('a');
-                              link.href = `/api/video-download/${download.id}`;
-                              link.download = `${download.title || 'audio'}.mp3`;
-                              link.click();
-                            }}
-                            className="bg-modern-accent hover:bg-modern-accent text-white hover-lift px-3 py-2 h-auto animate-pulse-glow"
-                            title="Download Audio File"
-                          >
-                            <Download className="w-4 h-4 mr-2" />
-                            <span className="text-xs">Download</span>
+                                onClick={() => handleRetry(download.id)}
+                                className="bg-orange-500 hover:bg-orange-600 text-white"
+                              >
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                Retry
                           </Button>
                         )}
-                      </>
-                    )}
+                            
                     {download.status === "downloading" && (
+                      null
+                    )}
+                            
                       <Button
                         size="sm"
-                        onClick={() => cancelMutation.mutate(download.id)}
-                        disabled={cancelMutation.isPending}
-                        className="bg-modern-error hover:bg-modern-error text-white hover-lift p-2 h-auto"
-                        title="Cancel Download"
+                              variant="outline"
+                              onClick={() => handleRemoveDownload(download.id)}
                       >
                         <X className="w-4 h-4" />
                       </Button>
-                    )}
-                    {(download.status === "completed" || download.status === "failed" || download.status === "cancelled") && (
-                      <Button
-                        size="sm"
-                        onClick={() => deleteMutation.mutate(download.id)}
-                        disabled={deleteMutation.isPending}
-                        className="glass-button hover-lift p-2 h-auto border-modern-error text-modern-error hover:bg-modern-error hover:text-white"
-                        title="Remove from list"
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    )}
                   </div>
                 </div>
               </div>
-            ))}
           </div>
+                  </CardContent>
+                </Card>
+              ))
         )}
       </div>
-      
-      {/* Video Player Modal */}
-      {selectedVideo && (
-        <VideoPlayer
-          isOpen={!!selectedVideo}
-          onClose={() => setSelectedVideo(null)}
-          videoTitle={selectedVideo.title}
-          fileName={selectedVideo.fileName}
-        />
-      )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

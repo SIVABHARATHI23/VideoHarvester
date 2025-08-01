@@ -13,7 +13,7 @@ export async function downloadInstagramFinal(url: string, downloadPath: string, 
       console.log('Instagram download successful via direct API');
       return result;
     }
-  } catch (error) {
+  } catch (error: any) {
     console.log('Direct API method failed:', error);
   }
 
@@ -24,7 +24,7 @@ export async function downloadInstagramFinal(url: string, downloadPath: string, 
       console.log('Instagram download successful via puppeteer extraction');
       return result;
     }
-  } catch (error) {
+  } catch (error: any) {
     console.log('Puppeteer extraction failed:', error);
   }
 
@@ -35,7 +35,7 @@ export async function downloadInstagramFinal(url: string, downloadPath: string, 
       console.log('Instagram download successful via cookie simulation');
       return result;
     }
-  } catch (error) {
+  } catch (error: any) {
     console.log('Cookie simulation failed:', error);
   }
 
@@ -106,7 +106,7 @@ async function tryInstagramAPIDirect(url: string, downloadPath: string, itemId: 
     }
 
     return { success: false, error: 'No video URL found in page' };
-  } catch (error) {
+  } catch (error: any) {
     return { success: false, error: `Direct API failed: ${error.message}` };
   }
 }
@@ -180,7 +180,7 @@ async function tryPuppeteerExtraction(url: string, downloadPath: string, itemId:
     }
 
     return { success: false, error: 'No video data found in GraphQL response' };
-  } catch (error) {
+  } catch (error: any) {
     return { success: false, error: `Puppeteer extraction failed: ${error.message}` };
   }
 }
@@ -219,7 +219,7 @@ async function tryYtDlpCookieSimulation(url: string, downloadPath: string, itemI
       url
     ];
 
-    const process = spawn('/home/runner/workspace/.pythonlibs/bin/yt-dlp', args);
+    const process = spawn('yt-dlp', args);
     let success = false;
 
     process.on('close', (code) => {

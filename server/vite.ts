@@ -22,9 +22,11 @@ export function log(message: string, source = "express") {
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
-    hmr: { server },
+    hmr: false, // Disable Vite's HMR WebSocket to avoid conflicts
     allowedHosts: true as const,
   };
+
+  console.log('Setting up Vite with HMR on port 5000');
 
   const vite = await createViteServer({
     ...viteConfig,

@@ -16,6 +16,7 @@ export const downloadItems = pgTable("download_items", {
   estimatedTime: text("estimated_time"),
   filePath: text("file_path"),
   errorMessage: text("error_message"),
+  downloadLocation: text("download_location"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -47,6 +48,8 @@ export type DownloadSettings = typeof downloadSettings.$inferSelect;
 // WebSocket message types
 export type WebSocketMessage = 
   | { type: "download_progress"; id: number; progress: number; speed?: string; eta?: string }
-  | { type: "download_complete"; id: number; filePath: string; fileSize: string }
+  | { type: "download_complete"; id: number; filePath: string; fileSize: string; quality?: string }
   | { type: "download_error"; id: number; error: string }
-  | { type: "download_started"; id: number };
+  | { type: "download_started"; id: number }
+  | { type: "download_warning"; id: number; message: string }
+  | { type: "download_info"; id: number; message: string };

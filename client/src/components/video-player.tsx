@@ -10,7 +10,7 @@ interface VideoPlayerProps {
   fileName: string;
 }
 
-export function VideoPlayer({ isOpen, onClose, videoTitle, fileName }: VideoPlayerProps) {
+export function VideoPlayer({ isOpen, onClose, videoTitle, fileName, downloadId }: VideoPlayerProps & { downloadId?: number }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
 

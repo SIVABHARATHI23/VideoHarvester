@@ -1,281 +1,932 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState, useEffect, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Settings, BarChart3, Zap, FolderOpen, Trash, Pause, History, Folder } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
-import { FolderBrowser } from "@/components/folder-browser";
-import type { DownloadSettings } from "@shared/schema";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { 
+  Settings, BarChart3, Zap, FolderOpen, Trash, Pause, History, 
+  Folder, Download, CheckCircle, AlertCircle, Clock, Play,
+  Wifi, WifiOff, HardDrive, Gauge, Monitor, Globe, Shield, 
+  RefreshCw, Activity, Target, Server, Database, Cpu, X, Check
+} from "lucide-react";
 
-export function Sidebar() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [showFolderBrowser, setShowFolderBrowser] = useState(false);
+// Types
+interface DownloadItem {
+  id: number;
+  status: 'queued' | 'downloading' | 'completed' | 'failed' | 'cancelled';
+  title?: string;
+  format?: string;
+  platform?: string;
+  progress?: number;
+  fileSize?: string;
+  url?: string;
+}
 
-  const { data: settings } = useQuery<DownloadSettings>({
-    queryKey: ["/api/settings"],
-  });
+interface DownloadSettings {
+  downloadPath?: string;
+  maxConcurrentDownloads?: number;
+  downloadQuality?: string;
+  audioQuality?: string;
+  autoRetry?: boolean;
+  notificationsEnabled?: boolean;
+  maxRetries?: number;
+  downloadTimeout?: number;
+}
 
-  const { data: downloads = [] } = useQuery({
-    queryKey: ["/api/downloads"],
-  });
+interface SystemStatus {
+  ytdlpAvailable: boolean;
+  activeDownloads: number;
+  queuedDownloads: number;
+  totalDownloads: number;
+  maxConcurrent: number;
+  version: string;
+}
 
-  const updateSettingsMutation = useMutation({
-    mutationFn: async (updates: Partial<DownloadSettings>) => {
-      const response = await apiRequest("POST", "/api/settings", updates);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
-      toast({
-        title: "Settings Updated",
-        description: "Your download settings have been saved.",
-      });
-    },
-  });
+interface ToastMessage {
+  id: string;
+  title: string;
+  description: string;
+  variant: 'default' | 'destructive' | 'success';
+}
 
-  const clearCompletedMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/downloads/clear-completed");
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/downloads"] });
-      toast({
-        title: "Cleared",
-        description: "Completed downloads have been cleared.",
-      });
-    },
-  });
+// Custom Toast Hook
+function useToast() {
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const openFolderMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/open-folder");
-      return response.json();
-    },
-    onSuccess: (data) => {
-      toast({
-        title: "Folder Opened",
-        description: data.message,
-      });
-    },
-  });
+  const toast = useCallback(({ title, description, variant = 'default' }: Omit<ToastMessage, 'id'>) => {
+    const id = Math.random().toString(36).substring(7);
+    const newToast = { id, title, description, variant };
+    
+    setToasts(prev => [...prev, newToast]);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 5000);
+  }, []);
 
-  const handleSettingChange = (key: keyof DownloadSettings, value: string | boolean | number) => {
-    updateSettingsMutation.mutate({ [key]: value });
+  const removeToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  return { toast, toasts, removeToast };
+}
+
+// API helper
+const apiRequest = async (method: string, endpoint: string, data?: any) => {
+  try {
+    const response = await fetch(endpoint, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: data ? JSON.stringify(data) : undefined,
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('API Request failed:', error);
+    throw error;
+  }
+};
+
+// Custom Switch Component
+function Switch({ checked, onCheckedChange, disabled }: { 
+  checked: boolean; 
+  onCheckedChange: (checked: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => !disabled && onCheckedChange(!checked)}
+      disabled={disabled}
+      className={`
+        relative inline-flex h-6 w-11 items-center rounded-full transition-colors
+        ${checked ? 'bg-blue-600' : 'bg-gray-200'}
+        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+      `}
+    >
+      <span
+        className={`
+          inline-block h-4 w-4 transform rounded-full bg-white transition-transform
+          ${checked ? 'translate-x-6' : 'translate-x-1'}
+        `}
+      />
+    </button>
+  );
+}
+
+// Custom Slider Component
+function Slider({ 
+  value, 
+  onValueChange, 
+  max, 
+  min, 
+  step, 
+  disabled,
+  className = "" 
+}: {
+  value: number[];
+  onValueChange: (value: number[]) => void;
+  max: number;
+  min: number;
+  step: number;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onValueChange([parseInt(e.target.value)]);
   };
-
-  const stats = {
-    total: downloads.length,
-    completed: downloads.filter(d => d.status === "completed").length,
-    downloading: downloads.filter(d => d.status === "downloading").length,
-    failed: downloads.filter(d => d.status === "failed").length,
-  };
-
-  const successRate = stats.total > 0 ? ((stats.completed / stats.total) * 100).toFixed(1) : "0.0";
 
   return (
-    <div className="space-y-6">
-      {/* Download Options */}
-      <Card>
-        <CardContent className="pt-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-            <Settings className="mr-2 text-material-blue" />
-            Download Options
-          </h3>
-          
-          <div className="space-y-4">
-            {/* Quality Selection */}
-            <div>
-              <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                Video Quality
-              </Label>
-              <Select
-                value={settings?.quality || "720p"}
-                onValueChange={(value) => handleSettingChange("quality", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="best">Best Available</SelectItem>
-                  <SelectItem value="1080p">1080p</SelectItem>
-                  <SelectItem value="720p">720p</SelectItem>
-                  <SelectItem value="480p">480p</SelectItem>
-                  <SelectItem value="360p">360p</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Format Selection */}
-            <div>
-              <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                Format
-              </Label>
-              <Select
-                value={settings?.format || "mp4"}
-                onValueChange={(value) => handleSettingChange("format", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="mp4">MP4 (Video)</SelectItem>
-                  <SelectItem value="webm">WebM (Video)</SelectItem>
-                  <SelectItem value="mp3">MP3 (Audio Only)</SelectItem>
-                  <SelectItem value="wav">WAV (Audio Only)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Download Location */}
-            <div>
-              <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                Save Location
-              </Label>
-              <div className="flex">
-                <Input
-                  value={settings?.downloadPath || "~/Downloads/Videos"}
-                  onChange={(e) => handleSettingChange("downloadPath", e.target.value)}
-                  className="rounded-r-none"
-                />
-                <Button 
-                  variant="outline" 
-                  className="rounded-l-none border-l-0"
-                  onClick={() => setShowFolderBrowser(true)}
-                >
-                  <Folder className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Advanced Settings */}
-            <div className="border-t pt-4 mt-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-3">Advanced Options</h4>
-              
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm text-gray-600">Auto-play videos</Label>
-                  <Switch
-                    checked={settings?.autoPlay || false}
-                    onCheckedChange={(checked) => handleSettingChange("autoPlay", checked)}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm text-gray-600">Show notifications</Label>
-                  <Switch
-                    checked={settings?.notifications || true}
-                    onCheckedChange={(checked) => handleSettingChange("notifications", checked)}
-                  />
-                </div>
-
-                <div>
-                  <Label className="text-sm text-gray-600 mb-2 block">
-                    Max concurrent downloads
-                  </Label>
-                  <Select
-                    value={String(settings?.maxConcurrentDownloads || 3)}
-                    onValueChange={(value) => handleSettingChange("maxConcurrentDownloads", parseInt(value))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1</SelectItem>
-                      <SelectItem value="2">2</SelectItem>
-                      <SelectItem value="3">3</SelectItem>
-                      <SelectItem value="5">5</SelectItem>
-                      <SelectItem value="10">10</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Statistics */}
-      <Card>
-        <CardContent className="pt-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-            <BarChart3 className="mr-2 text-material-blue" />
-            Statistics
-          </h3>
-          
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-material-gray-light">Total Downloads</span>
-              <span className="font-medium">{stats.total}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-material-gray-light">Completed</span>
-              <span className="font-medium">{stats.completed}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-material-gray-light">Downloading</span>
-              <span className="font-medium">{stats.downloading}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-material-gray-light">Success Rate</span>
-              <span className="font-medium text-material-success">{successRate}%</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardContent className="pt-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-            <Zap className="mr-2 text-material-blue" />
-            Quick Actions
-          </h3>
-          
-          <div className="space-y-2">
-            <Button 
-              variant="ghost" 
-              className="w-full justify-start"
-              onClick={() => openFolderMutation.mutate()}
-              disabled={openFolderMutation.isPending}
-            >
-              <FolderOpen className="mr-3 w-4 h-4 text-material-gray-light" />
-              Open Downloads Folder
-            </Button>
-            <Button 
-              variant="ghost" 
-              className="w-full justify-start"
-              onClick={() => clearCompletedMutation.mutate()}
-              disabled={clearCompletedMutation.isPending}
-            >
-              <Trash className="mr-3 w-4 h-4 text-material-gray-light" />
-              Clear Completed
-            </Button>
-            <Button variant="ghost" className="w-full justify-start">
-              <Pause className="mr-3 w-4 h-4 text-material-gray-light" />
-              Pause All Downloads
-            </Button>
-            <Button variant="ghost" className="w-full justify-start">
-              <History className="mr-3 w-4 h-4 text-material-gray-light" />
-              Download History
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Folder Browser Modal */}
-      <FolderBrowser
-        isOpen={showFolderBrowser}
-        onClose={() => setShowFolderBrowser(false)}
-        onSelectPath={(path) => handleSettingChange("downloadPath", path)}
-        currentPath={settings?.downloadPath}
+    <div className={`relative ${className}`}>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value[0]}
+        onChange={handleChange}
+        disabled={disabled}
+        className={`
+          w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer
+          ${disabled ? 'opacity-50' : ''}
+          slider-thumb:appearance-none slider-thumb:h-4 slider-thumb:w-4 
+          slider-thumb:rounded-full slider-thumb:bg-blue-600 slider-thumb:cursor-pointer
+        `}
+        style={{
+          background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((value[0] - min) / (max - min)) * 100}%, #e5e7eb ${((value[0] - min) / (max - min)) * 100}%, #e5e7eb 100%)`
+        }}
       />
     </div>
   );
 }
+
+// Toast Component
+function ToastContainer({ toasts, onRemove }: { toasts: ToastMessage[]; onRemove: (id: string) => void }) {
+  if (toasts.length === 0) return null;
+
+  return (
+    <div className="fixed top-4 right-4 z-50 space-y-2">
+      {toasts.map(toast => (
+        <div
+          key={toast.id}
+          className={`
+            min-w-80 p-4 rounded-lg shadow-lg border flex items-start justify-between
+            ${toast.variant === 'destructive' ? 'bg-red-50 border-red-200' : 
+              toast.variant === 'success' ? 'bg-green-50 border-green-200' : 
+              'bg-white border-gray-200'}
+          `}
+        >
+          <div className="flex-1">
+            <h4 className={`font-semibold text-sm ${
+              toast.variant === 'destructive' ? 'text-red-800' : 
+              toast.variant === 'success' ? 'text-green-800' : 
+              'text-gray-800'
+            }`}>
+              {toast.title}
+            </h4>
+            <p className={`text-sm mt-1 ${
+              toast.variant === 'destructive' ? 'text-red-700' : 
+              toast.variant === 'success' ? 'text-green-700' : 
+              'text-gray-600'
+            }`}>
+              {toast.description}
+            </p>
+          </div>
+          <button
+            onClick={() => onRemove(toast.id)}
+            className="ml-4 text-gray-400 hover:text-gray-600"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function AdvancedSidebar() {
+  // State management
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [activeTab, setActiveTab] = useState<'settings' | 'stats' | 'actions' | 'advanced'>('settings');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Data states
+  const [settings, setSettings] = useState<DownloadSettings>({
+    downloadPath: "~/Downloads/Videos",
+    maxConcurrentDownloads: 3,
+    downloadQuality: "1080p",
+    audioQuality: "320kbps",
+    autoRetry: true,
+    notificationsEnabled: true,
+    maxRetries: 2,
+    downloadTimeout: 600
+  });
+  
+  const [downloads, setDownloads] = useState<DownloadItem[]>([]);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
+  const [supportedPlatforms, setSupportedPlatforms] = useState<any>(null);
+  
+  // Action loading states
+  const [actionLoading, setActionLoading] = useState<{[key: string]: boolean}>({});
+
+  const { toast, toasts, removeToast } = useToast();
+
+  // Network status monitoring
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Data fetching
+  const fetchData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Fetch all data concurrently
+      const [settingsData, downloadsData, statusData, platformsData] = await Promise.allSettled([
+        apiRequest('GET', '/api/settings'),
+        apiRequest('GET', '/api/downloads'),
+        apiRequest('GET', '/api/status'),
+        apiRequest('GET', '/api/supported-platforms')
+      ]);
+
+      if (settingsData.status === 'fulfilled') {
+        setSettings(prev => ({ ...prev, ...settingsData.value }));
+      }
+
+      if (downloadsData.status === 'fulfilled') {
+        setDownloads(downloadsData.value);
+      }
+
+      if (statusData.status === 'fulfilled') {
+        setSystemStatus(statusData.value);
+      }
+
+      if (platformsData.status === 'fulfilled') {
+        setSupportedPlatforms(platformsData.value);
+      }
+
+    } catch (error: any) {
+      setError(error.message || 'Failed to fetch data');
+      toast({
+        title: "Error",
+        description: "Failed to load data from server",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  // Initial data load and polling
+  useEffect(() => {
+    fetchData();
+    
+    // Poll for updates every 5 seconds
+    const interval = setInterval(fetchData, 5000);
+    
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  // Calculate statistics
+  const stats = {
+    total: downloads.length,
+    completed: downloads.filter(d => d.status === 'completed').length,
+    downloading: downloads.filter(d => d.status === 'downloading').length,
+    failed: downloads.filter(d => d.status === 'failed').length,
+    queued: downloads.filter(d => d.status === 'queued').length,
+    totalSize: downloads.reduce((acc, d) => {
+      if (d.fileSize) {
+        const match = d.fileSize.match(/(\d+(?:\.\d+)?)\s*(MB|GB)/);
+        if (match) {
+          const size = parseFloat(match[1]);
+          const unit = match[2];
+          return acc + (unit === 'GB' ? size * 1024 : size);
+        }
+      }
+      return acc;
+    }, 0)
+  };
+
+  const successRate = stats.total > 0 ? ((stats.completed / stats.total) * 100).toFixed(1) : "0.0";
+
+  // Action handlers
+  const handleSettingChange = useCallback(async (key: keyof DownloadSettings, value: any) => {
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings);
+    
+    try {
+      await apiRequest('POST', '/api/settings', { [key]: value });
+      toast({
+        title: "Settings Updated",
+        description: `${key} has been updated successfully`,
+        variant: "success"
+      });
+    } catch (error: any) {
+      // Revert on error
+      setSettings(settings);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update settings",
+        variant: "destructive"
+      });
+    }
+  }, [settings, toast]);
+
+  const handleAction = useCallback(async (actionName: string, apiCall: () => Promise<any>) => {
+    setActionLoading(prev => ({ ...prev, [actionName]: true }));
+    
+    try {
+      const result = await apiCall();
+      toast({
+        title: "Success",
+        description: result.message || `${actionName} completed successfully`,
+        variant: "success"
+      });
+      
+      // Refresh data after action
+      fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || `Failed to ${actionName}`,
+        variant: "destructive"
+      });
+    } finally {
+      setActionLoading(prev => ({ ...prev, [actionName]: false }));
+    }
+  }, [toast, fetchData]);
+
+  const handleFolderPicker = async () => {
+    try {
+                    if ('showDirectoryPicker' in window) {
+        // @ts-ignore - File System Access API
+                        const dirHandle = await window.showDirectoryPicker();
+                        const path = dirHandle.name || '';
+                        if (path) {
+                          handleSettingChange("downloadPath", path);
+                        }
+      } else {
+        // Fallback for unsupported browsers
+        const input = document.createElement('input');
+        input.type = 'file';
+        (input as any).webkitdirectory = true;
+        input.onchange = (e: any) => {
+          const files = e.target.files;
+          if (files.length > 0) {
+            const path = files[0].webkitRelativePath.split('/')[0];
+            handleSettingChange("downloadPath", path);
+          }
+        };
+        input.click();
+      }
+    } catch (error) {
+      console.log('Folder picker cancelled');
+    }
+  };
+
+  const quickActions = [
+    {
+      label: 'Open Downloads Folder',
+      icon: FolderOpen,
+      action: () => handleAction('openFolder', () => apiRequest('POST', '/api/open-folder')),
+      color: 'text-blue-600',
+      key: 'openFolder'
+    },
+    {
+      label: 'Clear Completed',
+      icon: Trash,
+      action: () => handleAction('clearCompleted', () => apiRequest('POST', '/api/downloads/clear-completed')),
+      color: 'text-red-600',
+      key: 'clearCompleted',
+      disabled: !downloads.some(d => d.status === 'completed')
+    },
+    {
+      label: 'Pause All Downloads',
+      icon: Pause,
+      action: () => handleAction('pauseAll', async () => {
+        const activeDownloads = downloads.filter(d => d.status === 'downloading');
+        const promises = activeDownloads.map(d => 
+          apiRequest('POST', `/api/downloads/${d.id}/cancel`)
+        );
+        await Promise.all(promises);
+        return { message: 'All downloads paused' };
+      }),
+      color: 'text-yellow-600',
+      key: 'pauseAll',
+      disabled: !downloads.some(d => d.status === 'downloading')
+    },
+    {
+      label: 'Refresh Data',
+      icon: RefreshCw,
+      action: () => {
+        fetchData();
+                      toast({
+          title: "Refreshed",
+          description: "Data has been refreshed",
+          variant: "success"
+        });
+      },
+      color: 'text-indigo-600',
+      key: 'refresh'
+    }
+  ];
+
+  const tabButtons = [
+    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'stats', label: 'Statistics', icon: BarChart3 },
+    { id: 'actions', label: 'Actions', icon: Zap },
+    { id: 'advanced', label: 'Advanced', icon: Target }
+  ];
+
+  return (
+    <>
+      <div className="w-full lg:w-80 h-auto lg:h-screen bg-gray-50 border-r border-gray-200 p-4 space-y-6 mt-4 lg:mt-0">
+        {/* Error Alert */}
+        {error && (
+          <Alert className="border-red-200 bg-red-50">
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertDescription className="text-red-800">
+              {error}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Network Status */}
+        {!isOnline && (
+          <Card className="border-orange-200 bg-orange-50">
+            <CardContent className="p-4">
+              <div className="flex items-center">
+                <WifiOff className="w-5 h-5 text-orange-600 mr-3" />
+                <div>
+                  <h4 className="font-semibold text-orange-800">Offline</h4>
+                  <p className="text-sm text-orange-700">Downloads paused</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* System Status */}
+        {systemStatus && (
+          <Card className="bg-gradient-to-r from-green-50 to-blue-50">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <Server className="w-5 h-5 text-green-600 mr-2" />
+                  <div>
+                    <h4 className="font-semibold text-gray-800">System Status</h4>
+                    <p className="text-sm text-gray-600">v{systemStatus.version}</p>
+                  </div>
+                </div>
+                <Badge className={systemStatus.ytdlpAvailable ? "bg-green-500" : "bg-red-500"}>
+                  {systemStatus.ytdlpAvailable ? "Ready" : "Error"}
+                </Badge>
+              </div>
+              {systemStatus.activeDownloads > 0 && (
+                <div className="mt-2 text-sm text-blue-600">
+                  {systemStatus.activeDownloads} active, {systemStatus.queuedDownloads} queued
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Tab Navigation */}
+        <Card>
+          <CardContent className="p-2">
+            <div className="grid grid-cols-2 gap-1">
+              {tabButtons.map(tab => (
+                <Button
+                  key={tab.id}
+                  variant={activeTab === tab.id ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className="flex flex-col h-16 text-xs"
+                >
+                  <tab.icon className="w-4 h-4 mb-1" />
+                  {tab.label}
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center">
+                <Settings className="mr-2 text-blue-600 w-5 h-5" />
+                Download Settings
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Download Location */}
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Save Location</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={settings.downloadPath || "~/Downloads/Videos"}
+                    onChange={(e) => handleSettingChange("downloadPath", e.target.value)}
+                    className="flex-1"
+                    placeholder="~/Downloads/Videos"
+                    disabled={isLoading}
+                  />
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleFolderPicker}
+                    disabled={isLoading}
+                  >
+                    <Folder className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Concurrent Downloads */}
+              <div>
+                <Label className="text-sm font-medium mb-2 block">
+                  Concurrent Downloads: {settings.maxConcurrentDownloads || 3}
+                </Label>
+                <Slider
+                  value={[settings.maxConcurrentDownloads || 3]}
+                  onValueChange={(value) => handleSettingChange("maxConcurrentDownloads", value[0])}
+                  max={10}
+                  min={1}
+                  step={1}
+                  className="w-full"
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Quality Settings */}
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Default Video Quality</Label>
+                <Select
+                  value={settings.downloadQuality || "1080p"}
+                  onValueChange={(value) => handleSettingChange("downloadQuality", value)}
+                  disabled={isLoading}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2160p">4K Ultra HD (2160p)</SelectItem>
+                    <SelectItem value="1440p">2K Quad HD (1440p)</SelectItem>
+                    <SelectItem value="1080p">Full HD (1080p)</SelectItem>
+                    <SelectItem value="720p">HD Ready (720p)</SelectItem>
+                    <SelectItem value="480p">Standard (480p)</SelectItem>
+                    <SelectItem value="best">Best Available</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Audio Quality */}
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Audio Quality</Label>
+                <Select
+                  value={settings.audioQuality || "320kbps"}
+                  onValueChange={(value) => handleSettingChange("audioQuality", value)}
+                  disabled={isLoading}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="320kbps">High (320 kbps)</SelectItem>
+                    <SelectItem value="256kbps">Medium (256 kbps)</SelectItem>
+                    <SelectItem value="192kbps">Standard (192 kbps)</SelectItem>
+                    <SelectItem value="128kbps">Low (128 kbps)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Switches */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Auto Retry Failed Downloads</Label>
+                  <Switch
+                    checked={settings.autoRetry ?? true}
+                    onCheckedChange={(checked) => handleSettingChange("autoRetry", checked)}
+                    disabled={isLoading}
+                  />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Enable Notifications</Label>
+                  <Switch
+                    checked={settings.notificationsEnabled ?? true}
+                    onCheckedChange={(checked) => handleSettingChange("notificationsEnabled", checked)}
+                    disabled={isLoading}
+                  />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+        )}
+
+        {/* Statistics Tab */}
+        {activeTab === 'stats' && (
+          <div className="space-y-4">
+            {/* Quick Stats */}
+      <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center">
+                  <BarChart3 className="mr-2 text-green-600 w-5 h-5" />
+                  Download Statistics
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center p-3 bg-blue-50 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
+                    <div className="text-xs text-blue-800">Total</div>
+                  </div>
+                  <div className="text-center p-3 bg-green-50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
+                    <div className="text-xs text-green-800">Completed</div>
+                  </div>
+                  <div className="text-center p-3 bg-yellow-50 rounded-lg">
+                    <div className="text-2xl font-bold text-yellow-600">{stats.downloading}</div>
+                    <div className="text-xs text-yellow-800">Active</div>
+                  </div>
+                  <div className="text-center p-3 bg-red-50 rounded-lg">
+                    <div className="text-2xl font-bold text-red-600">{stats.failed}</div>
+                    <div className="text-xs text-red-800">Failed</div>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-4 border-t">
+            <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Success Rate</span>
+                    <span className="font-medium text-green-600">{successRate}%</span>
+            </div>
+            <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Queue Length</span>
+                    <span className="font-medium">{stats.queued}</span>
+            </div>
+            <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Total Downloaded</span>
+                    <span className="font-medium">{(stats.totalSize / 1024).toFixed(1)} GB</span>
+            </div>
+            <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Max Concurrent</span>
+                    <span className="font-medium text-blue-600">{systemStatus?.maxConcurrent || 3}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+            {/* System Info */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center">
+                  <Monitor className="mr-2 text-purple-600 w-5 h-5" />
+                  System Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Database className="w-4 h-4 mr-2 text-gray-500" />
+                    <span className="text-sm">yt-dlp Status</span>
+                  </div>
+                  <Badge className={systemStatus?.ytdlpAvailable ? "bg-green-500" : "bg-red-500"}>
+                    {systemStatus?.ytdlpAvailable ? "Available" : "Missing"}
+                  </Badge>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Activity className="w-4 h-4 mr-2 text-gray-500" />
+                    <span className="text-sm">Active Downloads</span>
+                  </div>
+                  <span className="font-medium">{systemStatus?.activeDownloads || 0}</span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Clock className="w-4 h-4 mr-2 text-gray-500" />
+                    <span className="text-sm">Queued Downloads</span>
+                  </div>
+                  <span className="font-medium">{systemStatus?.queuedDownloads || 0}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    {isOnline ? <Wifi className="w-4 h-4 mr-2 text-green-500" /> : <WifiOff className="w-4 h-4 mr-2 text-red-500" />}
+                    <span className="text-sm">Network</span>
+                  </div>
+                  <Badge className={isOnline ? "bg-green-500" : "bg-red-500"}>
+                    {isOnline ? "Online" : "Offline"}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Quick Actions Tab */}
+        {activeTab === 'actions' && (
+      <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center">
+                <Zap className="mr-2 text-orange-600 w-5 h-5" />
+            Quick Actions
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+          <div className="space-y-2">
+                {quickActions.map((action, index) => (
+            <Button 
+                    key={index}
+              variant="ghost" 
+                    className="w-full justify-start h-12"
+                    onClick={action.action}
+                    disabled={action.disabled || actionLoading[action.key] || isLoading}
+                  >
+                    <action.icon className={`mr-3 w-4 h-4 ${action.color} ${actionLoading[action.key] ? 'animate-spin' : ''}`} />
+                    <span className="text-sm">{action.label}</span>
+            </Button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Advanced Tab */}
+        {activeTab === 'advanced' && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center">
+                <Target className="mr-2 text-indigo-600 w-5 h-5" />
+                Advanced Settings
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Max Retries */}
+              <div>
+                <Label className="text-sm font-medium mb-2 block">
+                  Max Retry Attempts: {settings.maxRetries || 2}
+                </Label>
+                <Slider
+                  value={[settings.maxRetries || 2]}
+                  onValueChange={(value) => handleSettingChange("maxRetries", value[0])}
+                  max={5}
+                  min={0}
+                  step={1}
+                  className="w-full"
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Download Timeout */}
+              <div>
+                <Label className="text-sm font-medium mb-2 block">
+                  Download Timeout: {Math.floor((settings.downloadTimeout || 600) / 60)} minutes
+                </Label>
+                <Slider
+                  value={[settings.downloadTimeout || 600]}
+                  onValueChange={(value) => handleSettingChange("downloadTimeout", value[0])}
+                  max={1800}
+                  min={300}
+                  step={60}
+                  className="w-full"
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Debug Info */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-sm flex items-center">
+                  <Cpu className="w-4 h-4 mr-2" />
+                  Debug Information
+                </h4>
+                
+                <div className="text-xs space-y-1 bg-gray-100 p-3 rounded text-black dark:text-black">
+                  <div>Version: {systemStatus?.version || 'Unknown'}</div>
+                  <div>Max Concurrent: {systemStatus?.maxConcurrent || 'Unknown'}</div>
+                  <div>Total Downloads: {systemStatus?.totalDownloads || 0}</div>
+                  <div>Network Status: {isOnline ? 'Connected' : 'Disconnected'}</div>
+                  <div>Last Updated: {new Date().toLocaleTimeString()}</div>
+                </div>
+              </div>
+
+              {/* API Endpoints */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-sm flex items-center">
+                  <Globe className="w-4 h-4 mr-2" />
+                  API Status
+                </h4>
+                
+                <div className="space-y-2">
+                  {[
+                    { name: 'Settings', endpoint: '/api/settings' },
+                    { name: 'Downloads', endpoint: '/api/downloads' },
+                    { name: 'System Status', endpoint: '/api/status' },
+                    { name: 'Platforms', endpoint: '/api/supported-platforms' }
+                  ].map((api) => (
+                    <div key={api.endpoint} className="flex items-center justify-between text-xs">
+                      <span className="text-gray-600">{api.name}</span>
+                      <Badge variant="outline" className="text-xs">
+                        {isOnline ? 'Available' : 'Offline'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Platform Support Info */}
+        {supportedPlatforms && (
+          <Card className="bg-gradient-to-r from-blue-50 to-purple-50">
+            <CardContent className="p-4">
+              <h4 className="font-medium text-sm mb-3 flex items-center text-black dark:text-gray-800">
+                <Shield className="w-4 h-4 mr-2 text-blue-600" />
+                Supported Platforms ({supportedPlatforms.total})
+              </h4>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {supportedPlatforms.platforms?.slice(0, 6).map((platform: any) => (
+                  <Badge 
+                    key={platform.name}
+                    variant={platform.drmProtected ? "outline" : "secondary"} 
+                    className="justify-center"
+                  >
+                    {platform.name}
+                    {platform.drmProtected && "*"}
+                  </Badge>
+                ))}
+              </div>
+              <p className="text-xs text-gray-600 mt-2">
+                * Limited to public content only
+              </p>
+              {supportedPlatforms.disclaimer && (
+                <p className="text-xs text-blue-600 mt-1">
+                  ⚠️ {supportedPlatforms.disclaimer}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Loading Indicator */}
+        {isLoading && (
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="p-4">
+              <div className="flex items-center">
+                <RefreshCw className="w-4 h-4 text-blue-600 mr-2 animate-spin" />
+                <span className="text-sm text-blue-800">Loading data...</span>
+          </div>
+        </CardContent>
+      </Card>
+        )}
+
+        {/* Connection Status */}
+        <Card className="bg-gradient-to-r from-gray-50 to-gray-100">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center">
+                <div className={`w-2 h-2 rounded-full mr-2 ${isOnline ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <span className="text-gray-600">
+                  {isOnline ? 'Connected' : 'Disconnected'}
+                </span>
+              </div>
+              <span className="text-gray-500">
+                {new Date().toLocaleTimeString()}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+    </div>
+
+      {/* Toast Container */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+    </>
+  );
+}
+
+export { AdvancedSidebar as Sidebar };
