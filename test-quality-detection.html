@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quality Detection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="url"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .loading {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Quality Detection Test</h1>
+        <p>Test the quality detection for YouTube videos to see what qualities are actually available.</p>
+        
+        <div class="input-group">
+            <label for="videoUrl">YouTube Video URL:</label>
+            <input type="url" id="videoUrl" placeholder="https://www.youtube.com/watch?v=..." />
+        </div>
+        
+        <button onclick="testQualityDetection()" id="testBtn">🔍 Test Quality Detection</button>
+        
+        <div id="result" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        async function testQualityDetection() {
+            const url = document.getElementById('videoUrl').value.trim();
+            const resultDiv = document.getElementById('result');
+            const testBtn = document.getElementById('testBtn');
+            
+            if (!url) {
+                showResult('Please enter a YouTube URL', 'error');
+                return;
+            }
+            
+            if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
+                showResult('Please enter a valid YouTube URL', 'error');
+                return;
+            }
+            
+            // Show loading state
+            testBtn.disabled = true;
+            testBtn.textContent = '⏳ Testing...';
+            showResult('Testing quality detection...', 'loading');
+            
+            try {
+                const response = await fetch('/api/test-quality-detection', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const result = `✅ Quality Detection Successful!
+
+🎬 URL: ${data.url}
+🎯 Detected Qualities: ${data.detectedQualities.join(', ')}
+
+📊 Analysis:
+- Total qualities found: ${data.detectedQualities.length}
+- Highest quality: ${data.detectedQualities.find(q => q !== 'best') || 'Unknown'}
+- 4K available: ${data.detectedQualities.includes('2160p') || data.detectedQualities.includes('4K') ? '✅ YES' : '❌ NO'}
+- 2K available: ${data.detectedQualities.includes('1440p') || data.detectedQualities.includes('2K') ? '✅ YES' : '❌ NO'}
+- 1080p available: ${data.detectedQualities.includes('1080p') ? '✅ YES' : '❌ NO'}
+
+💡 This means the video should show these quality options in the download form.`;
+                    
+                    showResult(result, 'success');
+                } else {
+                    showResult(`❌ Quality Detection Failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult(`❌ Error: ${error.message}`, 'error');
+            } finally {
+                // Reset button state
+                testBtn.disabled = false;
+                testBtn.textContent = '🔍 Test Quality Detection';
+            }
+        }
+        
+        function showResult(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.textContent = message;
+            resultDiv.className = `result ${type}`;
+            resultDiv.style.display = 'block';
+        }
+        
+        // Allow Enter key to trigger test
+        document.getElementById('videoUrl').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                testQualityDetection();
+            }
+        });
+    </script>
+</body>
+</html>

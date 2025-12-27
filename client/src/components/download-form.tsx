@@ -5,14 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { 
-  Download, Video, Music, Settings, Zap, Crown, Star, 
-  Camera, Play, Globe, Clock, FileText, Image, 
-  ChevronDown, ChevronUp, Loader2, CheckCircle, 
+import {
+  Download, Video, Music, Settings, Zap, Crown, Star,
+  Camera, Play, Globe, Clock, FileText, Image,
+  ChevronDown, ChevronUp, Loader2, CheckCircle,
   AlertCircle, Info, Copy, Link2, Scissors,
   Volume2, Palette, Filter, Target, BarChart3, FolderOpen
 } from "lucide-react";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { FeatureHighlights } from "@/components/feature-highlights";
 
 interface VideoInfo {
   title: string;
@@ -24,6 +25,21 @@ interface VideoInfo {
   availableQualities: string[];
   fileSize: string;
   platform: string;
+  maxQuality?: string;
+  qualityRecommendation?: string;
+  supports4K?: boolean;
+  supports1080p?: boolean;
+  supports720p?: boolean;
+  // New fields for detailed format information
+  formats?: Array<{
+    formatId: string;
+    resolution: string;
+    quality: string;
+    fileSize: string;
+    format: string;
+    codec: string;
+    fps?: string;
+  }>;
 }
 
 interface DownloadHistoryItem {
@@ -45,9 +61,14 @@ export default function AdvancedDownloadForm() {
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   const [downloadHistory, setDownloadHistory] = useState<DownloadHistoryItem[]>([]);
+  const [thumbnailError, setThumbnailError] = useState(false);
   const [batchUrls, setBatchUrls] = useState<string>("");
   const [showBatchMode, setShowBatchMode] = useState<boolean>(false);
-  
+
+  // New state for format selection dropdown
+  const [showFormatDropdown, setShowFormatDropdown] = useState<boolean>(false);
+  const [selectedFormatId, setSelectedFormatId] = useState<string>("");
+
   // Advanced options
   const [audioCodec, setAudioCodec] = useState<string>("mp3");
   const [videoCodec, setVideoCodec] = useState<string>("h264");
@@ -58,7 +79,7 @@ export default function AdvancedDownloadForm() {
   const [metadata, setMetadata] = useState<boolean>(true);
   const [customFilename, setCustomFilename] = useState<string>("");
   const [downloadLocation, setDownloadLocation] = useState<string>("Downloads/Videos");
-  
+
   const progressRef = useRef<HTMLDivElement | null>(null);
   const [infoError, setInfoError] = useState<string | null>(null);
 
@@ -66,10 +87,30 @@ export default function AdvancedDownloadForm() {
   const fetchHistory = useCallback(() => {
     fetch('/api/downloads')
       .then(res => res.json())
-      .then((data: DownloadHistoryItem[]) => {
-        setDownloadHistory(data);
+      .then((data: any) => {
+        // Handle the new server response structure
+        const downloadsArray = data.downloads || data;
+
+        if (!Array.isArray(downloadsArray)) {
+          console.error('Invalid downloads data structure in download form:', data);
+          setDownloadHistory([]);
+          return;
+        }
+
+        // Convert to the expected format
+        const history = downloadsArray.map((d: any) => ({
+          id: d.id,
+          title: d.title || 'Unknown Title',
+          format: d.format || 'mp4',
+          quality: d.quality || 'best',
+          timestamp: d.createdAt || new Date().toISOString(),
+          platform: d.platform || 'Unknown'
+        }));
+
+        setDownloadHistory(history);
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error('Failed to fetch download history:', error);
         setDownloadHistory([]);
       });
   }, []);
@@ -107,16 +148,48 @@ export default function AdvancedDownloadForm() {
     setIsAnalyzing(true);
     setInfoError(null);
     setVideoInfo(null);
+    setThumbnailError(false);
     try {
+      console.log('Fetching video info for URL:', videoUrl);
       const res = await fetch("/api/video-info", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: videoUrl }),
       });
-      if (!res.ok) throw new Error("Failed to fetch video info");
-      const info = await res.json();
+
+      console.log('Response status:', res.status);
+      console.log('Response headers:', res.headers);
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`Failed to fetch video info: ${res.status} ${res.statusText}`);
+      }
+
+      const responseText = await res.text();
+      console.log('Response text:', responseText);
+
+      let info;
+      try {
+        info = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('JSON Parse Error:', parseError);
+        console.error('Response was not valid JSON:', responseText);
+        throw new Error('Invalid JSON response from server');
+      }
+
       setVideoInfo(info);
+
+      // Auto-select recommended quality if available
+      if (info.qualityRecommendation && info.qualityRecommendation !== selectedQuality) {
+        setSelectedQuality(info.qualityRecommendation);
+        toast({
+          title: "Quality Auto-Selected",
+          description: `Best available quality (${info.qualityRecommendation}) has been selected for this video.`,
+        });
+      }
     } catch (err: any) {
+      console.error('Fetch error:', err);
       setInfoError("Could not fetch video info");
     }
     setIsAnalyzing(false);
@@ -128,43 +201,110 @@ export default function AdvancedDownloadForm() {
   };
 
   const handleDownload = async () => {
-    if (!url.trim()) return;
+    if (!url.trim()) {
+      toast({
+        title: "URL Required",
+        description: "Please enter a valid video URL",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Additional validation for MP3 format
+    if (selectedFormat === 'mp3') {
+      if (!selectedQuality || selectedQuality === '') {
+        setSelectedQuality('best');
+        console.log('🎵 Set default quality to best for MP3');
+      }
+
+      // Validate MP3 configuration
+      console.log('🎵 MP3 download validation:', {
+        format: selectedFormat,
+        quality: selectedQuality,
+        formatId: selectedFormatId
+      });
+
+      if (selectedFormatId !== 'audio-mp3') {
+        toast({
+          title: "MP3 Format Not Selected",
+          description: "Please select MP3 format from the audio formats section",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setIsAnalyzing(true);
     try {
+      console.log('🎵 Starting download request:', { url, format: selectedFormat, quality: selectedQuality, selectedFormatId });
+      console.log('🎵 selectedFormat type:', typeof selectedFormat, 'value:', selectedFormat);
+
+      const requestBody = {
+        url,
+        format: selectedFormat,
+        quality: selectedQuality,
+        downloadLocation,
+        // Advanced options
+        audioCodec,
+        videoCodec,
+        startTime,
+        endTime,
+        subtitles,
+        thumbnail,
+        metadata,
+        customFilename,
+      };
+
+      console.log('🎵 Full request body:', requestBody);
+
       const res = await fetch("/api/downloads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url,
-          format: selectedFormat,
-          quality: selectedQuality,
-          downloadLocation,
-          // Advanced options
-          audioCodec,
-          videoCodec,
-          startTime,
-          endTime,
-          subtitles,
-          thumbnail,
-          metadata,
-          customFilename,
-        }),
+        body: JSON.stringify(requestBody),
       });
-      if (!res.ok) throw new Error("Failed to start download");
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ message: "Unknown error" }));
+        throw new Error(errorData.message || `HTTP ${res.status}: ${res.statusText}`);
+      }
+
+      const result = await res.json();
+      console.log('Download started successfully:', result);
+
+      const formatMessage = selectedFormat === 'mp3'
+        ? `MP3 audio download started! Quality: ${selectedQuality}`
+        : `Download started! Format: ${selectedFormat}, Quality: ${selectedQuality}`;
+
       toast({
         title: "Download started!",
-        description: `Your download has been initiated. Files will be saved to: ${downloadLocation}`,
+        description: `${formatMessage} Files will be saved to: ${downloadLocation}`,
       });
+
       setUrl("");
       setVideoInfo(null);
-    } catch (err) {
+      setInfoError(null);
+
+    } catch (err: any) {
+      console.error('Download request failed:', err);
+
+      let errorMessage = "Could not initiate download. Please try again.";
+      if (err.message) {
+        errorMessage = err.message;
+      }
+
+      // Special handling for MP3 format errors
+      if (selectedFormat === 'mp3') {
+        errorMessage = `MP3 download failed: ${errorMessage}. Please check the URL and try again.`;
+      }
+
       toast({
         title: "Failed to start download",
-        description: "Could not initiate download. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
+    } finally {
+      setIsAnalyzing(false);
     }
-    setIsAnalyzing(false);
   };
 
   const handleBatchDownload = async (): Promise<void> => {
@@ -190,7 +330,7 @@ export default function AdvancedDownloadForm() {
             customFilename,
           }),
         });
-      } catch {}
+      } catch { }
     }
     toast({
       title: "Batch download(s) started!",
@@ -223,15 +363,15 @@ export default function AdvancedDownloadForm() {
         // Fallback for older browsers - show input dialog with common paths
         const commonPaths = [
           "Downloads",
-          "Downloads/Videos", 
+          "Downloads/Videos",
           "Documents/Videos",
           "Desktop/Videos",
           "Music",
           "Videos"
         ];
         const customPath = prompt(
-          "Enter download path (e.g., Downloads, Downloads/Videos, Desktop/Videos):\n\nCommon options:\n" + 
-          commonPaths.join("\n"), 
+          "Enter download path (e.g., Downloads, Downloads/Videos, Desktop/Videos):\n\nCommon options:\n" +
+          commonPaths.join("\n"),
           downloadLocation
         );
         if (customPath) {
@@ -260,14 +400,43 @@ export default function AdvancedDownloadForm() {
     { value: "gif", label: "Animated GIF", icon: Image, color: "bg-pink-500" }
   ];
 
-  const qualityOptions = [
+  const allQualityOptions = [
     { value: "best", label: "Best Available", icon: Crown, gradient: "from-purple-500 to-pink-500" },
-    { value: "2160p", label: "4K Ultra HD", icon: Star, gradient: "from-blue-500 to-purple-500" },
-    { value: "1440p", label: "2K Quad HD", icon: Zap, gradient: "from-green-500 to-blue-500" },
-    { value: "1080p", label: "Full HD", icon: Target, gradient: "from-red-500 to-orange-500" },
-    { value: "720p", label: "HD Ready", icon: BarChart3, gradient: "from-yellow-500 to-red-500" },
-    { value: "480p", label: "Standard", icon: Filter, gradient: "from-gray-400 to-gray-600" }
+    { value: "2160p", label: "4K Ultra HD (2160p)", icon: Star, gradient: "from-blue-500 to-purple-500" },
+    { value: "1440p", label: "2K Quad HD (1440p)", icon: Star, gradient: "from-indigo-500 to-blue-500" },
+    { value: "1080p", label: "Full HD (1080p)", icon: Target, gradient: "from-red-500 to-orange-500" },
+    { value: "720p", label: "HD Ready (720p)", icon: BarChart3, gradient: "from-yellow-500 to-red-500" },
+    { value: "480p", label: "Standard (480p)", icon: Filter, gradient: "from-slate-400 to-slate-600" },
+    { value: "360p", label: "Low (360p)", icon: Filter, gradient: "from-slate-300 to-slate-500" },
+    { value: "240p", label: "Very Low (240p)", icon: Filter, gradient: "from-slate-200 to-slate-400" },
+    { value: "144p", label: "Minimum (144p)", icon: Filter, gradient: "from-slate-100 to-slate-300" }
   ];
+
+  const audioQualityOptions = [
+    { value: "best", label: "Best Quality (320kbps)", icon: Crown, gradient: "from-purple-500 to-pink-500" },
+    { value: "high", label: "High Quality (256kbps)", icon: Star, gradient: "from-blue-500 to-purple-500" },
+    { value: "medium", label: "Medium Quality (192kbps)", icon: Target, gradient: "from-red-500 to-orange-500" },
+    { value: "low", label: "Low Quality (128kbps)", icon: BarChart3, gradient: "from-yellow-500 to-red-500" }
+  ];
+
+  // Filter quality options based on available qualities from video info
+  const qualityOptions = selectedFormat === 'mp3'
+    ? audioQualityOptions
+    : videoInfo?.availableQualities
+      ? allQualityOptions.filter(option =>
+        videoInfo.availableQualities.includes(option.value) || option.value === 'best'
+      )
+      : allQualityOptions;
+
+  // Add logging to see what qualities are available
+  useEffect(() => {
+    if (videoInfo?.availableQualities) {
+      console.log('🎯 Available qualities from server:', videoInfo.availableQualities);
+      console.log('🎯 Filtered quality options:', qualityOptions);
+      console.log('🎯 Max quality supported:', videoInfo.maxQuality);
+      console.log('🎯 Quality recommendation:', videoInfo.qualityRecommendation);
+    }
+  }, [videoInfo, qualityOptions]);
 
   const handleRemoveDownload = async (id: number) => {
     try {
@@ -281,359 +450,544 @@ export default function AdvancedDownloadForm() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6">
+    <div className="max-w-full mx-auto p-4 sm:p-8 space-y-10 animate-scale-up">
       {/* Main Download Interface */}
-      <Card className="bg-gradient-to-br from-white via-blue-50 to-purple-50 border-0 shadow-2xl">
-        <CardHeader className="text-center pb-4">
-          <CardTitle className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-black text-transparent">
-             Video Downloader
-          </CardTitle>
-          <p className="text-gray-600 text-lg">Professional-grade downloading with advanced features</p>
-          
-          {/* Platform Support Badges */}
-          <div className="flex flex-wrap justify-center gap-2 mt-4">
-            {["YouTube", "Instagram", "TikTok", "Twitter", "Facebook", "Hotstar", "+1000 more"].map((platform, idx) => (
-              <Badge key={platform} variant="secondary" className="animate-pulse" style={{animationDelay: `${idx * 0.2}s`}}>
-                {platform}
-              </Badge>
-            ))}
-          </div>
-        </CardHeader>
+      <div className="relative group">
+        {/* Animated Gradient Border */}
+        <div className="absolute -inset-0.5 bg-gradient-purple-blue rounded-3xl blur opacity-30 group-hover:opacity-50 transition-opacity duration-500 animate-pulse-glow"></div>
 
-        <CardContent className="space-y-8">
-          {/* URL Input Section */}
-          <div className="space-y-6">
-            <div className="relative group">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-600 rounded-2xl blur opacity-20 group-hover:opacity-30 transition-opacity"></div>
-              <div className="relative bg-white rounded-2xl p-1 border-2 border-gray-200">
-                <div className="flex">
-                  <Input
-                    type="url"
-                    placeholder="🔗 Paste any video URL here..."
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    className="flex-1 h-16 text-lg border-0 bg-transparent focus:ring-0 px-6"
-                  />
-                  <Button
-                    onClick={handleSubmit}
-                    disabled={isAnalyzing || !url.trim()}
-                    className="h-14 px-8 m-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105"
-                  >
-                    {isAnalyzing ? (
-                      <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Analyzing...
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-5 h-5 mr-2" />
-                        Analyze
-                      </>
-                    )}
-                  </Button>
-                  {videoInfo && (
-                    <Button
-                      onClick={handleDownload}
-                      disabled={isAnalyzing}
-                      className="h-14 px-8 m-1 bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105"
-                    >
-                      <Download className="w-5 h-5 mr-2" />
-                      Download
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
+        <Card className="relative glass-card-premium border-0 shadow-floating rounded-3xl bg-white/80 dark:bg-modern-surface/80 backdrop-blur-xl">
+          <CardHeader className="text-center pb-4">
+            <CardTitle className="text-5xl font-black text-gradient-purple-blue drop-shadow-lg animate-slide-down">
+              Video Downloader
+            </CardTitle>
+            <p className="text-gray-600 dark:text-gray-300 text-lg mt-2 animate-fade-in">Professional-grade downloading with advanced features</p>
 
-            {/* Download Location Selection */}
-            <div className="space-y-4">
-              <h3 className="text-xl font-semibold text-gray-800 flex items-center text-black">
-                <FolderOpen className="w-5 h-5 mr-2" />
-                Download Location
-              </h3>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <span className="text-sm text-gray-600">Current location:</span>
-                  <div className="font-medium text-gray-800">{downloadLocation}</div>
-                </div>
-                <Button
-                  onClick={handleSelectDownloadLocation}
-                  variant="outline"
-                  className="px-4 py-2"
+            {/* Platform Support Badges */}
+            <div className="flex flex-wrap justify-center gap-2 mt-6">
+              {["YouTube", "Instagram", "TikTok", "Twitter", "Facebook", "Hotstar", "+1000 more"].map((platform, idx) => (
+                <Badge
+                  key={platform}
+                  variant="secondary"
+                  className="glass-button hover-scale shadow-sm animate-fade-in"
+                  style={{ animationDelay: `${idx * 0.1}s` }}
                 >
-                  <FolderOpen className="w-4 h-4 mr-2" />
-                  Change Location
-                </Button>
-              </div>
+                  {platform}
+                </Badge>
+              ))}
             </div>
+          </CardHeader>
 
-            {/* Format Selection */}
-            <div className="space-y-4">
-              <h3 className="text-xl font-semibold text-gray-800 flex items-center text-black">
-                <Palette className="w-5 h-5 mr-2" />
-                Output Format
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                {formatOptions.map((format) => (
-                  <button
-                    key={format.value}
-                    type="button"
-                    onClick={() => setSelectedFormat(format.value)}
-                    className={`p-4 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
-                      selectedFormat === format.value
-                        ? `${format.color} text-white border-transparent shadow-lg`
-                        : "bg-white border-gray-200 hover:border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
-                    }`}
-                  >
-                    <format.icon className="w-6 h-6 mx-auto mb-2" />
-                    <div className="text-sm font-medium">{format.label}</div>
-                  </button>
-                ))}
+          <CardContent className="space-y-8">
+            {/* URL Input Section */}
+            <div className="space-y-6">
+              <div className="relative group">
+                <div className="absolute inset-0 bg-gradient-purple-blue rounded-2xl blur-md opacity-20 group-hover:opacity-40 transition-opacity duration-300"></div>
+                <div className="relative glass-card rounded-2xl p-1 border-2 border-white/20 dark:border-white/10 bg-white/50 dark:bg-black/20">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      type="url"
+                      placeholder="🔗 Paste any video URL here..."
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      className="flex-1 h-14 sm:h-16 text-base sm:text-lg border-0 bg-transparent focus:ring-2 focus:ring-purple-500/50 px-4 sm:px-6 transition-all duration-300 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                    />
+                    <Button
+                      onClick={handleSubmit}
+                      disabled={isAnalyzing || !url.trim()}
+                      className="h-12 sm:h-14 px-6 sm:px-8 m-1 bg-gradient-purple-blue hover:shadow-glow text-white rounded-xl font-semibold text-base sm:text-lg transition-all duration-300 hover-scale hover-lift w-full sm:w-auto"
+                    >
+                      {isAnalyzing ? (
+                        <>
+                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                          Analyzing...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-5 h-5 mr-2" />
+                          Analyze
+                        </>
+                      )}
+                    </Button>
+                    {videoInfo && (
+                      <Button
+                        onClick={handleDownload}
+                        disabled={isAnalyzing}
+                        className="h-12 sm:h-14 px-6 sm:px-8 m-1 bg-gradient-teal-green hover:shadow-glow text-white rounded-xl font-semibold text-base sm:text-lg transition-all duration-300 hover-scale hover-lift animate-scale-up w-full sm:w-auto"
+                      >
+                        <Download className="w-5 h-5 mr-2" />
+                        Download
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
 
-            {/* Quality Selection - Direct Download on Click */}
-            {(selectedFormat === "mp4" || selectedFormat === "webm") && (
+              {/* Download Location Selection */}
               <div className="space-y-4">
                 <h3 className="text-xl font-semibold text-gray-800 flex items-center text-black">
-                  <Target className="w-5 h-5 mr-2" />
-                  Video Quality
+                  <FolderOpen className="w-5 h-5 mr-2" />
+                  Download Location
                 </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                  {qualityOptions.map((quality) => (
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <span className="text-sm text-gray-600">Current location:</span>
+                    <div className="font-medium text-gray-800">{downloadLocation}</div>
+                  </div>
+                  <Button
+                    onClick={handleSelectDownloadLocation}
+                    variant="outline"
+                    className="px-4 py-2"
+                  >
+                    <FolderOpen className="w-4 h-4 mr-2" />
+                    Change Location
+                  </Button>
+                </div>
+              </div>
+
+              {/* Format Selection */}
+              <div className="space-y-4">
+                <h3 className="text-xl font-semibold text-gray-800 flex items-center text-black">
+                  <Palette className="w-5 h-5 mr-2" />
+                  Output Format
+                </h3>
+
+                {/* MP3 Format Indicator */}
+                {selectedFormat === "mp3" && (
+                  <div className="bg-green-100 border-2 border-green-300 rounded-xl p-4">
+                    <div className="flex items-center">
+                      <Music className="w-6 h-6 mr-3 text-green-600" />
+                      <div>
+                        <div className="font-semibold text-green-800">MP3 Audio Format Selected</div>
+                        <div className="text-sm text-green-600">Audio-only download with best quality</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                  {formatOptions.map((format) => (
                     <button
-                      key={quality.value}
+                      key={format.value}
                       type="button"
-                      onClick={() => {
-                        setSelectedQuality(quality.value);
-                      }}
-                      className={`p-4 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
-                        selectedQuality === quality.value
-                          ? `bg-gradient-to-r ${quality.gradient} text-white border-transparent shadow-lg`
-                          : "bg-white border-gray-200 hover:border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
-                      }`}
+                      onClick={() => setSelectedFormat(format.value)}
+                      className={`p-4 rounded-xl border-2 transition-all duration-300 hover-scale hover-lift ${selectedFormat === format.value
+                        ? `${format.color} text-white border-transparent shadow-glow`
+                        : "glass-button hover:border-purple-300 dark:hover:border-purple-500"
+                        }`}
                     >
-                      <quality.icon className="w-5 h-5 mx-auto mb-2" />
-                      <div className="text-sm font-medium">{quality.label}</div>
+                      <format.icon className="w-6 h-6 mx-auto mb-2 transition-transform duration-300 group-hover:scale-110" />
+                      <div className="text-sm font-medium">{format.label}</div>
                     </button>
                   ))}
                 </div>
               </div>
-            )}
 
-            {/* Advanced Options Toggle */}
-            <div className="flex justify-center">
-              <button
-                type="button"
-                onClick={() => setIsAdvancedMode(!isAdvancedMode)}
-                className="flex items-center px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors duration-300"
-              >
-                <Settings className="w-5 h-5 mr-2" />
-                Advanced Options
-                {isAdvancedMode ? <ChevronUp className="w-4 h-4 ml-2" /> : <ChevronDown className="w-4 h-4 ml-2" />}
-              </button>
+              {/* Quality Selection - New Dropdown Style */}
+              {(selectedFormat === "mp4" || selectedFormat === "webm") && videoInfo && (
+                <div className="space-y-4">
+                  <h3 className="text-xl font-semibold text-gray-800 flex items-center text-black">
+                    <Target className="w-5 h-5 mr-2" />
+                    Select Download Quality
+                  </h3>
+
+                  {/* Format Selection Dropdown */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowFormatDropdown(!showFormatDropdown)}
+                      className="w-full p-4 bg-white/80 dark:bg-modern-surface-alt/80 border-2 border-gray-200 dark:border-white/10 rounded-xl flex items-center justify-between hover:border-gray-300 dark:hover:border-white/20 transition-colors backdrop-blur-md"
+                    >
+                      <div className="flex items-center">
+                        <Download className="w-5 h-5 mr-3 text-green-600" />
+                        <div className="text-left">
+                          <div className="font-medium text-gray-900">
+                            {selectedFormatId ? `Selected: ${selectedFormatId}` : "Choose download quality..."}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {videoInfo.maxQuality ? `Available up to ${videoInfo.maxQuality}` : "Loading formats..."}
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${showFormatDropdown ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {/* Dropdown Menu */}
+                    {showFormatDropdown && (
+                      <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-modern-surface border-2 border-gray-200 dark:border-white/10 rounded-xl shadow-2xl z-50 max-h-96 sm:max-h-[500px] overflow-y-auto backdrop-blur-xl animate-scale-up">
+                        {/* Video Formats Section */}
+                        <div className="p-4 border-b border-gray-100">
+                          <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+                            <Video className="w-4 h-4 mr-2 text-blue-600" />
+                            Video Formats (MP4)
+                          </h4>
+                          <div className="space-y-2">
+                            {videoInfo.formats?.filter(f => f.format === 'mp4' && f.resolution).map((format) => (
+                              <button
+                                key={format.formatId}
+                                onClick={() => {
+                                  setSelectedFormatId(format.formatId);
+                                  setSelectedQuality(format.quality);
+                                  setShowFormatDropdown(false);
+                                }}
+                                className="w-full p-3 flex items-center justify-between hover:bg-gray-50 rounded-lg transition-colors"
+                              >
+                                <div className="flex items-center">
+                                  <Download className="w-4 h-4 mr-3 text-green-600" />
+                                  <span className="font-medium text-gray-900">MP4</span>
+                                  <span className="ml-2 text-gray-500">{format.resolution}</span>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm font-medium text-gray-700">{format.quality}</div>
+                                  {format.fileSize && (
+                                    <div className="text-xs text-gray-500">{format.fileSize}</div>
+                                  )}
+                                </div>
+                              </button>
+                            ))}
+                            {/* Fallback to available qualities if formats not available */}
+                            {(!videoInfo.formats || videoInfo.formats.length === 0) && videoInfo.availableQualities?.map((quality) => (
+                              <button
+                                key={quality}
+                                onClick={() => {
+                                  setSelectedFormatId(quality);
+                                  setSelectedQuality(quality);
+                                  setShowFormatDropdown(false);
+                                }}
+                                className="w-full p-3 flex items-center justify-between hover:bg-gray-50 rounded-lg transition-colors"
+                              >
+                                <div className="flex items-center">
+                                  <Download className="w-4 h-4 mr-3 text-green-600" />
+                                  <span className="font-medium text-gray-900">MP4</span>
+                                  <span className="ml-2 text-gray-500">{quality}</span>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm font-medium text-gray-700">{quality}</div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Audio Formats Section */}
+                        <div className="p-4">
+                          <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+                            <Music className="w-4 h-4 mr-2 text-green-600" />
+                            Audio Formats
+                          </h4>
+                          <div className="space-y-2">
+                            <button
+                              onClick={() => {
+                                console.log('🎵 MP3 button clicked - setting format to mp3');
+                                setSelectedFormatId("audio-mp3");
+                                setSelectedQuality("best");
+                                setSelectedFormat("mp3");
+                                setShowFormatDropdown(false);
+                                console.log('🎵 After setting - selectedFormat:', "mp3", 'selectedQuality:', "best");
+
+                                // Show success toast
+                                toast({
+                                  title: "MP3 Format Selected",
+                                  description: "Audio-only MP3 download configured. Quality set to best available.",
+                                });
+
+                                // Additional debugging
+                                console.log('🎵 MP3 Selection Debug:', {
+                                  selectedFormat: "mp3",
+                                  selectedQuality: "best",
+                                  selectedFormatId: "audio-mp3",
+                                  timestamp: new Date().toISOString()
+                                });
+                              }}
+                              className="w-full p-3 flex items-center justify-between hover:bg-gray-50 rounded-lg transition-colors"
+                            >
+                              <div className="flex items-center">
+                                <Download className="w-4 h-4 mr-3 text-green-600" />
+                                <span className="font-medium text-gray-900">MP3</span>
+                                <span className="ml-2 text-gray-500">Audio</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm font-medium text-gray-700">Audio Only</div>
+                                <div className="text-xs text-gray-500">Best Quality</div>
+                              </div>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* MP3 Quality Selection */}
+              {selectedFormat === "mp3" && (
+                <div className="space-y-4">
+                  <h3 className="text-xl font-semibold text-gray-800 flex items-center text-black">
+                    <Music className="w-5 h-5 mr-2" />
+                    MP3 Audio Quality
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                    {audioQualityOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          setSelectedQuality(option.value);
+                          toast({
+                            title: "Quality Updated",
+                            description: `MP3 quality set to ${option.label}`,
+                          });
+                        }}
+                        className={`p-4 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${selectedQuality === option.value
+                          ? "bg-green-500 text-white border-transparent shadow-lg"
+                          : "bg-white border-gray-200 hover:border-gray-300"
+                          }`}
+                      >
+                        <option.icon className="w-6 h-6 mx-auto mb-2" />
+                        <div className="text-sm font-medium">{option.label}</div>
+                        <div className="text-xs opacity-80">
+                          {option.value === 'best' ? '320kbps' :
+                            option.value === 'high' ? '256kbps' :
+                              option.value === 'medium' ? '192kbps' : '128kbps'}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Selected Format Info */}
+              {selectedFormatId && (
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-lg p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-green-800 dark:text-green-400">
+                      <span className="font-medium">Selected:</span> {selectedFormatId}
+                    </div>
+                    <div className="text-sm text-green-700 dark:text-green-300 font-medium">
+                      Quality: {selectedQuality}
+                    </div>
+                  </div>
+                  {selectedFormat === "mp3" && (
+                    <div className="text-xs text-green-600 dark:text-green-500 mt-1">
+                      🎵 Audio-only MP3 download configured
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Advanced Options Toggle */}
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setIsAdvancedMode(!isAdvancedMode)}
+                  className="flex items-center px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors duration-300"
+                >
+                  <Settings className="w-5 h-5 mr-2" />
+                  Advanced Options
+                  {isAdvancedMode ? <ChevronUp className="w-4 h-4 ml-2" /> : <ChevronDown className="w-4 h-4 ml-2" />}
+                </button>
+              </div>
+
+              {/* Advanced Options Panel */}
+              {isAdvancedMode && (
+                <div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 space-y-6 border-2 border-gray-200 dark:border-white/10 backdrop-blur-md">
+                  <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">Advanced Configuration</h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {/* Time Range */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700 flex items-center text-black">
+                        <Scissors className="w-4 h-4 mr-2" />
+                        Trim Video
+                      </label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="time"
+                          step="1"
+                          placeholder="Start"
+                          value={startTime}
+                          onChange={(e) => setStartTime(e.target.value)}
+                          className="text-sm"
+                        />
+                        <Input
+                          type="time"
+                          step="1"
+                          placeholder="End"
+                          value={endTime}
+                          onChange={(e) => setEndTime(e.target.value)}
+                          className="text-sm dark:bg-modern-surface dark:border-white/10 dark:text-white"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Custom Filename */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700 dark:text-white/80 flex items-center">
+                        <FileText className="w-4 h-4 mr-2" />
+                        Custom Filename
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="Enter custom filename..."
+                        value={customFilename}
+                        onChange={(e) => setCustomFilename(e.target.value)}
+                        className="text-sm dark:bg-modern-surface dark:border-white/10 dark:text-white"
+                      />
+                    </div>
+
+                    {/* Audio/Video Codecs */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700 dark:text-white/80">Codec Settings</label>
+                      <div className="space-y-2">
+                        <select
+                          value={audioCodec}
+                          onChange={(e) => setAudioCodec(e.target.value)}
+                          className="w-full p-2 border rounded-lg text-sm dark:bg-modern-surface dark:border-white/10 dark:text-white"
+                        >
+                          <option value="mp3">MP3 Audio</option>
+                          <option value="aac">AAC Audio</option>
+                          <option value="flac">FLAC Audio</option>
+                          <option value="opus">Opus Audio</option>
+                        </select>
+                        <select
+                          value={videoCodec}
+                          onChange={(e) => setVideoCodec(e.target.value)}
+                          className="w-full p-2 border rounded-lg text-sm"
+                        >
+                          <option value="h264">H.264</option>
+                          <option value="h265">H.265/HEVC</option>
+                          <option value="vp9">VP9</option>
+                          <option value="av1">AV1</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Additional Options */}
+                  <div className="flex flex-wrap gap-4">
+                    {[
+                      { key: 'subtitles', label: 'Download Subtitles', state: subtitles, setState: setSubtitles },
+                      { key: 'thumbnail', label: 'Save Thumbnail', state: thumbnail, setState: setThumbnail },
+                      { key: 'metadata', label: 'Preserve Metadata', state: metadata, setState: setMetadata }
+                    ].map((option) => (
+                      <label key={option.key} className="flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={option.state}
+                          onChange={(e) => option.setState(e.target.checked)}
+                          className="mr-2 w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">{option.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Advanced Options Panel */}
-            {isAdvancedMode && (
-              <div className="bg-gray-50 rounded-2xl p-6 space-y-6 border-2 border-gray-200">
-                <h3 className="text-xl font-semibold text-gray-800 mb-4 text-black">Advanced Configuration</h3>
-                
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {/* Time Range */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700 flex items-center text-black">
-                      <Scissors className="w-4 h-4 mr-2" />
-                      Trim Video
-                    </label>
-                    <div className="flex gap-2">
-                      <Input
-                        type="time"
-                        step="1"
-                        placeholder="Start"
-                        value={startTime}
-                        onChange={(e) => setStartTime(e.target.value)}
-                        className="text-sm"
-                      />
-                      <Input
-                        type="time"
-                        step="1"
-                        placeholder="End"
-                        value={endTime}
-                        onChange={(e) => setEndTime(e.target.value)}
-                        className="text-sm"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Custom Filename */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700 flex items-center text-black">
-                      <FileText className="w-4 h-4 mr-2" />
-                      Custom Filename
-                    </label>
-                    <Input
-                      type="text"
-                      placeholder="Enter custom filename..."
-                      value={customFilename}
-                      onChange={(e) => setCustomFilename(e.target.value)}
-                      className="text-sm"
-                    />
-                  </div>
-
-                  {/* Audio/Video Codecs */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700 text-black">Codec Settings</label>
-                    <div className="space-y-2">
-                      <select 
-                        value={audioCodec} 
-                        onChange={(e) => setAudioCodec(e.target.value)}
-                        className="w-full p-2 border rounded-lg text-sm"
-                      >
-                        <option value="mp3">MP3 Audio</option>
-                        <option value="aac">AAC Audio</option>
-                        <option value="flac">FLAC Audio</option>
-                        <option value="opus">Opus Audio</option>
-                      </select>
-                      <select 
-                        value={videoCodec} 
-                        onChange={(e) => setVideoCodec(e.target.value)}
-                        className="w-full p-2 border rounded-lg text-sm"
-                      >
-                        <option value="h264">H.264</option>
-                        <option value="h265">H.265/HEVC</option>
-                        <option value="vp9">VP9</option>
-                        <option value="av1">AV1</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Additional Options */}
-                <div className="flex flex-wrap gap-4">
-                  {[
-                    { key: 'subtitles', label: 'Download Subtitles', state: subtitles, setState: setSubtitles },
-                    { key: 'thumbnail', label: 'Save Thumbnail', state: thumbnail, setState: setThumbnail },
-                    { key: 'metadata', label: 'Preserve Metadata', state: metadata, setState: setMetadata }
-                  ].map((option) => (
-                    <label key={option.key} className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={option.state}
-                        onChange={(e) => option.setState(e.target.checked)}
-                        className="mr-2 w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">{option.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Batch Download Section */}
-          <div className="border-t pt-6">
-            <button
-              onClick={() => setShowBatchMode(!showBatchMode)}
-              className="flex items-center text-lg font-semibold text-gray-800 hover:text-blue-600 transition-colors"
-            >
-              <Link2 className="w-5 h-5 mr-2" />
-              Batch Download Mode
-              {showBatchMode ? <ChevronUp className="w-4 h-4 ml-2" /> : <ChevronDown className="w-4 h-4 ml-2" />}
-            </button>
-            
-            {showBatchMode && (
-              <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
-                <textarea
-                  placeholder="Paste multiple URLs (one per line)..."
-                  value={batchUrls}
-                  onChange={(e) => setBatchUrls(e.target.value)}
-                  rows={6}
-                  className="w-full p-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <Button 
-                  onClick={handleBatchDownload}
-                  className="mt-3 bg-blue-500 hover:bg-blue-600 text-white"
-                  disabled={!batchUrls.trim()}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Download All ({batchUrls.split('\n').filter((u: string) => u.trim()).length} URLs)
-                </Button>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Video Information Card */}
-      {videoInfo !== null && (
-        <Card className="bg-white shadow-lg border-0">
-          <CardContent className="p-6">
-            <div className="flex items-start space-x-6">
-              <img 
-                src={(videoInfo as VideoInfo).thumbnail} 
-                alt="Video thumbnail" 
-                className="w-32 h-24 object-cover rounded-lg shadow-md"
-              />
-              <div className="flex-1">
-                <h3 className="text-xl font-semibold text-gray-800 mb-2 text-black">{(videoInfo as VideoInfo).title}</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
-                  <div className="flex items-center">
-                    <Clock className="w-4 h-4 mr-1" />
-                    Duration: {(videoInfo as VideoInfo).duration}
-                  </div>
-                  <div className="flex items-center">
-                    <Globe className="w-4 h-4 mr-1" />
-                    Platform: {(videoInfo as VideoInfo).platform}
-                  </div>
-                  <div className="flex items-center">
-                    <Download className="w-4 h-4 mr-1" />
-                    Size: {(videoInfo as VideoInfo).fileSize}
-                  </div>
-                  <div className="flex items-center">
-                    <Play className="w-4 h-4 mr-1" />
-                    Views: {(videoInfo as VideoInfo).views}
-                  </div>
-                </div>
-              </div>
+            {/* Batch Download Section */}
+            <div className="border-t pt-6">
               <button
-                onClick={() => copyToClipboard((videoInfo as VideoInfo).title)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                title="Copy title"
+                onClick={() => setShowBatchMode(!showBatchMode)}
+                className="flex items-center text-lg font-semibold text-gray-800 hover:text-blue-600 transition-colors"
               >
-                <Copy className="w-4 h-4" />
+                <Link2 className="w-5 h-5 mr-2" />
+                Batch Download Mode
+                {showBatchMode ? <ChevronUp className="w-4 h-4 ml-2" /> : <ChevronDown className="w-4 h-4 ml-2" />}
               </button>
+
+              {showBatchMode && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                  <textarea
+                    placeholder="Paste multiple URLs (one per line)..."
+                    value={batchUrls}
+                    onChange={(e) => setBatchUrls(e.target.value)}
+                    rows={6}
+                    className="w-full p-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <Button
+                    onClick={handleBatchDownload}
+                    className="mt-3 bg-blue-500 hover:bg-blue-600 text-white"
+                    disabled={!batchUrls.trim()}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download All ({batchUrls.split('\n').filter((u: string) => u.trim()).length} URLs)
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Feature Highlights Cards */}
+            <div className="mt-8">
+              <FeatureHighlights />
             </div>
           </CardContent>
         </Card>
-      )}
+      </div>
+
+      {/* Video Information Card */}
+      {videoInfo !== null && (() => {
+        const info = videoInfo as VideoInfo;
+        const hasThumbnail = info.thumbnail && info.thumbnail.trim() !== '' && info.thumbnail !== 'NA' && !thumbnailError;
+        
+        return (
+          <Card className="bg-white/80 dark:bg-modern-surface/80 shadow-lg border-0 backdrop-blur-xl">
+            <CardContent className="p-6">
+              <div className="flex items-start space-x-6">
+                {/* Thumbnail with fallback */}
+                <div className="w-32 h-24 flex-shrink-0 rounded-lg shadow-md overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                  {hasThumbnail ? (
+                    <img
+                      src={info.thumbnail}
+                      alt="Video thumbnail"
+                      className="w-full h-full object-cover"
+                      onError={() => setThumbnailError(true)}
+                    />
+                  ) : (
+                    <Video className="w-8 h-8 text-gray-400" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-2 break-words">
+                    {info.title || 'Unknown Title'}
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600 dark:text-gray-400">
+                    <div className="flex items-center">
+                      <Clock className="w-4 h-4 mr-1 flex-shrink-0" />
+                      <span>Duration: {info.duration || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Globe className="w-4 h-4 mr-1 flex-shrink-0" />
+                      <span>Platform: {info.platform || 'Unknown'}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Download className="w-4 h-4 mr-1 flex-shrink-0" />
+                      <span>Size: {info.fileSize || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Play className="w-4 h-4 mr-1 flex-shrink-0" />
+                      <span>Views: {info.views || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => copyToClipboard(info.title || '')}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex-shrink-0"
+                  title="Copy title"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {infoError && (
         <Card className="bg-red-50 border-0 shadow-lg">
           <CardContent className="p-6 text-red-700">{infoError}</CardContent>
         </Card>
       )}
-
-      {/* Feature Highlights */}
-      <div className="grid md:grid-cols-3 gap-6">
-        <Card className="text-center p-6 bg-gradient-to-br from-blue-50 to-blue-100 border-0">
-          <Zap className="w-12 h-12 mx-auto mb-4 text-blue-600" />
-          <h3 className="text-lg font-semibold mb-2 text-black">Lightning Fast</h3>
-          <p className="text-gray-600 text-sm">Advanced multi-threaded downloading for maximum speed</p>
-        </Card>
-
-        <Card className="text-center p-6 bg-gradient-to-br from-purple-50 to-purple-100 border-0">
-          <Crown className="w-12 h-12 mx-auto mb-4 text-purple-600" />
-          <h3 className="text-lg font-semibold mb-2 text-black">Premium Quality</h3>
-          <p className="text-gray-600 text-sm">Support for 4K, HDR, and lossless audio formats</p>
-        </Card>
-
-        <Card className="text-center p-6 bg-gradient-to-br from-green-50 to-green-100 border-0">
-          <Globe className="w-12 h-12 mx-auto mb-4 text-green-600" />
-          <h3 className="text-lg font-semibold mb-2 text-black">Universal Support</h3>
-          <p className="text-gray-600 text-sm">Works with 1000+ platforms and video streaming sites</p>
-        </Card>
-      </div>
     </div>
   );
 }

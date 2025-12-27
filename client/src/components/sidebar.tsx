@@ -6,10 +6,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  Settings, BarChart3, Zap, FolderOpen, Trash, Pause, History, 
+import {
+  Settings, BarChart3, Zap, FolderOpen, Trash, Pause, History,
   Folder, Download, CheckCircle, AlertCircle, Clock, Play,
-  Wifi, WifiOff, HardDrive, Gauge, Monitor, Globe, Shield, 
+  Wifi, WifiOff, HardDrive, Gauge, Monitor, Globe, Shield,
   RefreshCw, Activity, Target, Server, Database, Cpu, X, Check
 } from "lucide-react";
 
@@ -59,9 +59,9 @@ function useToast() {
   const toast = useCallback(({ title, description, variant = 'default' }: Omit<ToastMessage, 'id'>) => {
     const id = Math.random().toString(36).substring(7);
     const newToast = { id, title, description, variant };
-    
+
     setToasts(prev => [...prev, newToast]);
-    
+
     // Auto remove after 5 seconds
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
@@ -83,11 +83,11 @@ const apiRequest = async (method: string, endpoint: string, data?: any) => {
       headers: { 'Content-Type': 'application/json' },
       body: data ? JSON.stringify(data) : undefined,
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('API Request failed:', error);
@@ -96,8 +96,8 @@ const apiRequest = async (method: string, endpoint: string, data?: any) => {
 };
 
 // Custom Switch Component
-function Switch({ checked, onCheckedChange, disabled }: { 
-  checked: boolean; 
+function Switch({ checked, onCheckedChange, disabled }: {
+  checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   disabled?: boolean;
 }) {
@@ -126,14 +126,14 @@ function Switch({ checked, onCheckedChange, disabled }: {
 }
 
 // Custom Slider Component
-function Slider({ 
-  value, 
-  onValueChange, 
-  max, 
-  min, 
-  step, 
+function Slider({
+  value,
+  onValueChange,
+  max,
+  min,
+  step,
   disabled,
-  className = "" 
+  className = ""
 }: {
   value: number[];
   onValueChange: (value: number[]) => void;
@@ -182,24 +182,22 @@ function ToastContainer({ toasts, onRemove }: { toasts: ToastMessage[]; onRemove
           key={toast.id}
           className={`
             min-w-80 p-4 rounded-lg shadow-lg border flex items-start justify-between
-            ${toast.variant === 'destructive' ? 'bg-red-50 border-red-200' : 
-              toast.variant === 'success' ? 'bg-green-50 border-green-200' : 
-              'bg-white border-gray-200'}
+            ${toast.variant === 'destructive' ? 'bg-red-50 border-red-200' :
+              toast.variant === 'success' ? 'bg-green-50 border-green-200' :
+                'bg-white border-gray-200'}
           `}
         >
           <div className="flex-1">
-            <h4 className={`font-semibold text-sm ${
-              toast.variant === 'destructive' ? 'text-red-800' : 
-              toast.variant === 'success' ? 'text-green-800' : 
-              'text-gray-800'
-            }`}>
+            <h4 className={`font-semibold text-sm ${toast.variant === 'destructive' ? 'text-red-800' :
+              toast.variant === 'success' ? 'text-green-800' :
+                'text-gray-800'
+              }`}>
               {toast.title}
             </h4>
-            <p className={`text-sm mt-1 ${
-              toast.variant === 'destructive' ? 'text-red-700' : 
-              toast.variant === 'success' ? 'text-green-700' : 
-              'text-gray-600'
-            }`}>
+            <p className={`text-sm mt-1 ${toast.variant === 'destructive' ? 'text-red-700' :
+              toast.variant === 'success' ? 'text-green-700' :
+                'text-gray-600'
+              }`}>
               {toast.description}
             </p>
           </div>
@@ -221,7 +219,7 @@ export default function AdvancedSidebar() {
   const [activeTab, setActiveTab] = useState<'settings' | 'stats' | 'actions' | 'advanced'>('settings');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Data states
   const [settings, setSettings] = useState<DownloadSettings>({
     downloadPath: "~/Downloads/Videos",
@@ -233,13 +231,13 @@ export default function AdvancedSidebar() {
     maxRetries: 2,
     downloadTimeout: 600
   });
-  
+
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [supportedPlatforms, setSupportedPlatforms] = useState<any>(null);
-  
+
   // Action loading states
-  const [actionLoading, setActionLoading] = useState<{[key: string]: boolean}>({});
+  const [actionLoading, setActionLoading] = useState<{ [key: string]: boolean }>({});
 
   const { toast, toasts, removeToast } = useToast();
 
@@ -247,10 +245,10 @@ export default function AdvancedSidebar() {
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
-    
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -276,7 +274,15 @@ export default function AdvancedSidebar() {
       }
 
       if (downloadsData.status === 'fulfilled') {
-        setDownloads(downloadsData.value);
+        // Handle the new server response structure
+        const downloadsArray = downloadsData.value.downloads || downloadsData.value;
+
+        if (Array.isArray(downloadsArray)) {
+          setDownloads(downloadsArray);
+        } else {
+          console.error('Invalid downloads data structure in sidebar:', downloadsData.value);
+          setDownloads([]);
+        }
       }
 
       if (statusData.status === 'fulfilled') {
@@ -302,21 +308,21 @@ export default function AdvancedSidebar() {
   // Initial data load and polling
   useEffect(() => {
     fetchData();
-    
+
     // Poll for updates every 5 seconds
     const interval = setInterval(fetchData, 5000);
-    
+
     return () => clearInterval(interval);
   }, [fetchData]);
 
   // Calculate statistics
   const stats = {
-    total: downloads.length,
-    completed: downloads.filter(d => d.status === 'completed').length,
-    downloading: downloads.filter(d => d.status === 'downloading').length,
-    failed: downloads.filter(d => d.status === 'failed').length,
-    queued: downloads.filter(d => d.status === 'queued').length,
-    totalSize: downloads.reduce((acc, d) => {
+    total: Array.isArray(downloads) ? downloads.length : 0,
+    completed: Array.isArray(downloads) ? downloads.filter(d => d.status === 'completed').length : 0,
+    downloading: Array.isArray(downloads) ? downloads.filter(d => d.status === 'downloading').length : 0,
+    failed: Array.isArray(downloads) ? downloads.filter(d => d.status === 'failed').length : 0,
+    queued: Array.isArray(downloads) ? downloads.filter(d => d.status === 'queued').length : 0,
+    totalSize: Array.isArray(downloads) ? downloads.reduce((acc, d) => {
       if (d.fileSize) {
         const match = d.fileSize.match(/(\d+(?:\.\d+)?)\s*(MB|GB)/);
         if (match) {
@@ -326,7 +332,7 @@ export default function AdvancedSidebar() {
         }
       }
       return acc;
-    }, 0)
+    }, 0) : 0
   };
 
   const successRate = stats.total > 0 ? ((stats.completed / stats.total) * 100).toFixed(1) : "0.0";
@@ -335,7 +341,7 @@ export default function AdvancedSidebar() {
   const handleSettingChange = useCallback(async (key: keyof DownloadSettings, value: any) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
-    
+
     try {
       await apiRequest('POST', '/api/settings', { [key]: value });
       toast({
@@ -356,7 +362,7 @@ export default function AdvancedSidebar() {
 
   const handleAction = useCallback(async (actionName: string, apiCall: () => Promise<any>) => {
     setActionLoading(prev => ({ ...prev, [actionName]: true }));
-    
+
     try {
       const result = await apiCall();
       toast({
@@ -364,7 +370,7 @@ export default function AdvancedSidebar() {
         description: result.message || `${actionName} completed successfully`,
         variant: "success"
       });
-      
+
       // Refresh data after action
       fetchData();
     } catch (error: any) {
@@ -380,13 +386,13 @@ export default function AdvancedSidebar() {
 
   const handleFolderPicker = async () => {
     try {
-                    if ('showDirectoryPicker' in window) {
+      if ('showDirectoryPicker' in window) {
         // @ts-ignore - File System Access API
-                        const dirHandle = await window.showDirectoryPicker();
-                        const path = dirHandle.name || '';
-                        if (path) {
-                          handleSettingChange("downloadPath", path);
-                        }
+        const dirHandle = await window.showDirectoryPicker();
+        const path = dirHandle.name || '';
+        if (path) {
+          handleSettingChange("downloadPath", path);
+        }
       } else {
         // Fallback for unsupported browsers
         const input = document.createElement('input');
@@ -420,14 +426,18 @@ export default function AdvancedSidebar() {
       action: () => handleAction('clearCompleted', () => apiRequest('POST', '/api/downloads/clear-completed')),
       color: 'text-red-600',
       key: 'clearCompleted',
-      disabled: !downloads.some(d => d.status === 'completed')
+      disabled: !Array.isArray(downloads) || !downloads.some(d => d.status === 'completed')
     },
     {
       label: 'Pause All Downloads',
       icon: Pause,
       action: () => handleAction('pauseAll', async () => {
+        if (!Array.isArray(downloads)) return { message: 'No downloads available' };
+
         const activeDownloads = downloads.filter(d => d.status === 'downloading');
-        const promises = activeDownloads.map(d => 
+        if (activeDownloads.length === 0) return { message: 'No active downloads to pause' };
+
+        const promises = activeDownloads.map(d =>
           apiRequest('POST', `/api/downloads/${d.id}/cancel`)
         );
         await Promise.all(promises);
@@ -435,14 +445,14 @@ export default function AdvancedSidebar() {
       }),
       color: 'text-yellow-600',
       key: 'pauseAll',
-      disabled: !downloads.some(d => d.status === 'downloading')
+      disabled: !Array.isArray(downloads) || !downloads.some(d => d.status === 'downloading')
     },
     {
       label: 'Refresh Data',
       icon: RefreshCw,
       action: () => {
         fetchData();
-                      toast({
+        toast({
           title: "Refreshed",
           description: "Data has been refreshed",
           variant: "success"
@@ -462,7 +472,7 @@ export default function AdvancedSidebar() {
 
   return (
     <>
-      <div className="w-full lg:w-80 h-auto lg:h-screen bg-gray-50 border-r border-gray-200 p-4 space-y-6 mt-4 lg:mt-0">
+      <div className="w-full lg:w-80 h-auto lg:h-screen bg-transparent dark:bg-transparent p-4 space-y-6 mt-4 lg:mt-0">
         {/* Error Alert */}
         {error && (
           <Alert className="border-red-200 bg-red-50">
@@ -475,13 +485,13 @@ export default function AdvancedSidebar() {
 
         {/* Network Status */}
         {!isOnline && (
-          <Card className="border-orange-200 bg-orange-50">
+          <Card className="border-orange-200 dark:border-orange-800/50 bg-orange-50 dark:bg-orange-900/20">
             <CardContent className="p-4">
               <div className="flex items-center">
-                <WifiOff className="w-5 h-5 text-orange-600 mr-3" />
+                <WifiOff className="w-5 h-5 text-orange-600 dark:text-orange-400 mr-3" />
                 <div>
-                  <h4 className="font-semibold text-orange-800">Offline</h4>
-                  <p className="text-sm text-orange-700">Downloads paused</p>
+                  <h4 className="font-semibold text-orange-800 dark:text-orange-200">Offline</h4>
+                  <p className="text-sm text-orange-700 dark:text-orange-300">Downloads paused</p>
                 </div>
               </div>
             </CardContent>
@@ -490,32 +500,30 @@ export default function AdvancedSidebar() {
 
         {/* System Status */}
         {systemStatus && (
-          <Card className="bg-gradient-to-r from-green-50 to-blue-50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <Server className="w-5 h-5 text-green-600 mr-2" />
-                  <div>
-                    <h4 className="font-semibold text-gray-800">System Status</h4>
-                    <p className="text-sm text-gray-600">v{systemStatus.version}</p>
-                  </div>
+          <div className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <Server className="w-5 h-5 text-green-600 dark:text-green-400 mr-2" />
+                <div>
+                  <h4 className="font-semibold text-gray-800 dark:text-white">System Status</h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">v{systemStatus.version}</p>
                 </div>
-                <Badge className={systemStatus.ytdlpAvailable ? "bg-green-500" : "bg-red-500"}>
-                  {systemStatus.ytdlpAvailable ? "Ready" : "Error"}
-                </Badge>
               </div>
-              {systemStatus.activeDownloads > 0 && (
-                <div className="mt-2 text-sm text-blue-600">
-                  {systemStatus.activeDownloads} active, {systemStatus.queuedDownloads} queued
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              <Badge className={systemStatus.ytdlpAvailable ? "bg-green-500" : "bg-red-500"}>
+                {systemStatus.ytdlpAvailable ? "Ready" : "Error"}
+              </Badge>
+            </div>
+            {systemStatus.activeDownloads > 0 && (
+              <div className="mt-2 text-sm text-blue-600 dark:text-blue-400">
+                {systemStatus.activeDownloads} active, {systemStatus.queuedDownloads} queued
+              </div>
+            )}
+          </div>
         )}
 
         {/* Tab Navigation */}
-        <Card>
-          <CardContent className="p-2">
+        <div>
+          <div className="p-2">
             <div className="grid grid-cols-2 gap-1">
               {tabButtons.map(tab => (
                 <Button
@@ -530,33 +538,33 @@ export default function AdvancedSidebar() {
                 </Button>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Settings Tab */}
         {activeTab === 'settings' && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center">
-                <Settings className="mr-2 text-blue-600 w-5 h-5" />
+          <div>
+            <div className="pb-3 text-black dark:text-white">
+              <h3 className="text-lg flex items-center font-semibold">
+                <Settings className="mr-2 text-blue-600 dark:text-blue-400 w-5 h-5" />
                 Download Settings
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
+              </h3>
+            </div>
+            <div className="space-y-6">
               {/* Download Location */}
               <div>
-                <Label className="text-sm font-medium mb-2 block">Save Location</Label>
+                <Label className="text-sm font-medium mb-2 block dark:text-gray-300">Save Location</Label>
                 <div className="flex gap-2">
                   <Input
                     value={settings.downloadPath || "~/Downloads/Videos"}
                     onChange={(e) => handleSettingChange("downloadPath", e.target.value)}
-                    className="flex-1"
+                    className="flex-1 dark:bg-modern-surface dark:border-white/10 dark:text-white"
                     placeholder="~/Downloads/Videos"
                     disabled={isLoading}
                   />
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={handleFolderPicker}
                     disabled={isLoading}
                   >
@@ -567,7 +575,7 @@ export default function AdvancedSidebar() {
 
               {/* Concurrent Downloads */}
               <div>
-                <Label className="text-sm font-medium mb-2 block">
+                <Label className="text-sm font-medium mb-2 block dark:text-gray-300">
                   Concurrent Downloads: {settings.maxConcurrentDownloads || 3}
                 </Label>
                 <Slider
@@ -583,7 +591,7 @@ export default function AdvancedSidebar() {
 
               {/* Quality Settings */}
               <div>
-                <Label className="text-sm font-medium mb-2 block">Default Video Quality</Label>
+                <Label className="text-sm font-medium mb-2 block dark:text-gray-300">Default Video Quality</Label>
                 <Select
                   value={settings.downloadQuality || "1080p"}
                   onValueChange={(value) => handleSettingChange("downloadQuality", value)}
@@ -605,7 +613,7 @@ export default function AdvancedSidebar() {
 
               {/* Audio Quality */}
               <div>
-                <Label className="text-sm font-medium mb-2 block">Audio Quality</Label>
+                <Label className="text-sm font-medium mb-2 block dark:text-gray-300">Audio Quality</Label>
                 <Select
                   value={settings.audioQuality || "320kbps"}
                   onValueChange={(value) => handleSettingChange("audioQuality", value)}
@@ -626,169 +634,167 @@ export default function AdvancedSidebar() {
               {/* Switches */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">Auto Retry Failed Downloads</Label>
+                  <Label className="text-sm font-medium dark:text-gray-300">Auto Retry Failed Downloads</Label>
                   <Switch
                     checked={settings.autoRetry ?? true}
                     onCheckedChange={(checked) => handleSettingChange("autoRetry", checked)}
                     disabled={isLoading}
                   />
                 </div>
-                
+
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">Enable Notifications</Label>
+                  <Label className="text-sm font-medium dark:text-gray-300">Enable Notifications</Label>
                   <Switch
                     checked={settings.notificationsEnabled ?? true}
                     onCheckedChange={(checked) => handleSettingChange("notificationsEnabled", checked)}
                     disabled={isLoading}
                   />
+                </div>
+              </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
         )}
 
         {/* Statistics Tab */}
         {activeTab === 'stats' && (
           <div className="space-y-4">
             {/* Quick Stats */}
-      <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center">
+            <div>
+              <div className="pb-3">
+                <h3 className="text-lg flex items-center font-semibold">
                   <BarChart3 className="mr-2 text-green-600 w-5 h-5" />
                   Download Statistics
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+                </h3>
+              </div>
+              <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-3 bg-blue-50 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-                    <div className="text-xs text-blue-800">Total</div>
+                  <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.total}</div>
+                    <div className="text-xs text-blue-800 dark:text-blue-300">Total</div>
                   </div>
-                  <div className="text-center p-3 bg-green-50 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
-                    <div className="text-xs text-green-800">Completed</div>
+                  <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.completed}</div>
+                    <div className="text-xs text-green-800 dark:text-green-300">Completed</div>
                   </div>
-                  <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                    <div className="text-2xl font-bold text-yellow-600">{stats.downloading}</div>
-                    <div className="text-xs text-yellow-800">Active</div>
+                  <div className="text-center p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                    <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{stats.downloading}</div>
+                    <div className="text-xs text-yellow-800 dark:text-yellow-300">Active</div>
                   </div>
-                  <div className="text-center p-3 bg-red-50 rounded-lg">
-                    <div className="text-2xl font-bold text-red-600">{stats.failed}</div>
-                    <div className="text-xs text-red-800">Failed</div>
+                  <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                    <div className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.failed}</div>
+                    <div className="text-xs text-red-800 dark:text-red-300">Failed</div>
                   </div>
                 </div>
 
-                <div className="space-y-3 pt-4 border-t">
-            <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Success Rate</span>
-                    <span className="font-medium text-green-600">{successRate}%</span>
+                <div className="space-y-3 pt-4 border-t border-gray-100 dark:border-white/10">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Success Rate</span>
+                    <span className="font-medium text-green-600 dark:text-green-400">{successRate}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Queue Length</span>
+                    <span className="font-medium dark:text-white">{stats.queued}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Total Downloaded</span>
+                    <span className="font-medium dark:text-white">{(stats.totalSize / 1024).toFixed(1)} GB</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Max Concurrent</span>
+                    <span className="font-medium text-blue-600 dark:text-blue-400">{systemStatus?.maxConcurrent || 3}</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Queue Length</span>
-                    <span className="font-medium">{stats.queued}</span>
-            </div>
-            <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Total Downloaded</span>
-                    <span className="font-medium">{(stats.totalSize / 1024).toFixed(1)} GB</span>
-            </div>
-            <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Max Concurrent</span>
-                    <span className="font-medium text-blue-600">{systemStatus?.maxConcurrent || 3}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
             {/* System Info */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center">
-                  <Monitor className="mr-2 text-purple-600 w-5 h-5" />
+            <div className="mt-4">
+              <div className="pb-3 text-black dark:text-white">
+                <h3 className="text-lg flex items-center font-semibold">
+                  <Monitor className="mr-2 text-purple-600 dark:text-purple-400 w-5 h-5" />
                   System Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+                </h3>
+              </div>
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <Database className="w-4 h-4 mr-2 text-gray-500" />
-                    <span className="text-sm">yt-dlp Status</span>
+                    <Database className="w-4 h-4 mr-2 text-gray-500 dark:text-gray-400" />
+                    <span className="text-sm dark:text-gray-300">yt-dlp Status</span>
                   </div>
                   <Badge className={systemStatus?.ytdlpAvailable ? "bg-green-500" : "bg-red-500"}>
                     {systemStatus?.ytdlpAvailable ? "Available" : "Missing"}
                   </Badge>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <Activity className="w-4 h-4 mr-2 text-gray-500" />
-                    <span className="text-sm">Active Downloads</span>
+                    <Activity className="w-4 h-4 mr-2 text-gray-500 dark:text-gray-400" />
+                    <span className="text-sm dark:text-gray-300">Active Downloads</span>
                   </div>
-                  <span className="font-medium">{systemStatus?.activeDownloads || 0}</span>
+                  <span className="font-medium dark:text-white">{systemStatus?.activeDownloads || 0}</span>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <Clock className="w-4 h-4 mr-2 text-gray-500" />
-                    <span className="text-sm">Queued Downloads</span>
+                    <Clock className="w-4 h-4 mr-2 text-gray-500 dark:text-gray-400" />
+                    <span className="text-sm dark:text-gray-300">Queued Downloads</span>
                   </div>
-                  <span className="font-medium">{systemStatus?.queuedDownloads || 0}</span>
+                  <span className="font-medium dark:text-white">{systemStatus?.queuedDownloads || 0}</span>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     {isOnline ? <Wifi className="w-4 h-4 mr-2 text-green-500" /> : <WifiOff className="w-4 h-4 mr-2 text-red-500" />}
-                    <span className="text-sm">Network</span>
+                    <span className="text-sm dark:text-gray-300">Network</span>
                   </div>
                   <Badge className={isOnline ? "bg-green-500" : "bg-red-500"}>
                     {isOnline ? "Online" : "Offline"}
                   </Badge>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Quick Actions Tab */}
         {activeTab === 'actions' && (
-      <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center">
-                <Zap className="mr-2 text-orange-600 w-5 h-5" />
-            Quick Actions
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-          <div className="space-y-2">
+          <div>
+            <div className="pb-3 text-black dark:text-white">
+              <h3 className="text-lg flex items-center font-semibold">
+                <Zap className="mr-2 text-orange-600 dark:text-orange-400 w-5 h-5" />
+                Quick Actions
+              </h3>
+            </div>
+            <div>
+              <div className="space-y-2">
                 {quickActions.map((action, index) => (
-            <Button 
+                  <Button
                     key={index}
-              variant="ghost" 
-                    className="w-full justify-start h-12"
+                    variant="ghost"
+                    className="w-full justify-start h-12 hover:bg-gray-100 dark:hover:bg-white/5 dark:text-gray-300"
                     onClick={action.action}
                     disabled={action.disabled || actionLoading[action.key] || isLoading}
                   >
                     <action.icon className={`mr-3 w-4 h-4 ${action.color} ${actionLoading[action.key] ? 'animate-spin' : ''}`} />
                     <span className="text-sm">{action.label}</span>
-            </Button>
+                  </Button>
                 ))}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
-        {/* Advanced Tab */}
         {activeTab === 'advanced' && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center">
-                <Target className="mr-2 text-indigo-600 w-5 h-5" />
+          <div>
+            <div className="pb-3 text-black dark:text-white">
+              <h3 className="text-lg flex items-center font-semibold">
+                <Target className="mr-2 text-indigo-600 dark:text-indigo-400 w-5 h-5" />
                 Advanced Settings
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
+              </h3>
+            </div>
+            <div className="space-y-6">
               {/* Max Retries */}
               <div>
-                <Label className="text-sm font-medium mb-2 block">
+                <Label className="text-sm font-medium mb-2 block dark:text-gray-300">
                   Max Retry Attempts: {settings.maxRetries || 2}
                 </Label>
                 <Slider
@@ -804,7 +810,7 @@ export default function AdvancedSidebar() {
 
               {/* Download Timeout */}
               <div>
-                <Label className="text-sm font-medium mb-2 block">
+                <Label className="text-sm font-medium mb-2 block dark:text-gray-300">
                   Download Timeout: {Math.floor((settings.downloadTimeout || 600) / 60)} minutes
                 </Label>
                 <Slider
@@ -820,12 +826,12 @@ export default function AdvancedSidebar() {
 
               {/* Debug Info */}
               <div className="space-y-4">
-                <h4 className="font-medium text-sm flex items-center">
-                  <Cpu className="w-4 h-4 mr-2" />
+                <h4 className="font-medium text-sm flex items-center dark:text-gray-200">
+                  <Cpu className="w-4 h-4 mr-2 text-purple-500" />
                   Debug Information
                 </h4>
-                
-                <div className="text-xs space-y-1 bg-gray-100 p-3 rounded text-black dark:text-black">
+
+                <div className="text-xs space-y-1 p-3 text-gray-800 dark:text-gray-300">
                   <div>Version: {systemStatus?.version || 'Unknown'}</div>
                   <div>Max Concurrent: {systemStatus?.maxConcurrent || 'Unknown'}</div>
                   <div>Total Downloads: {systemStatus?.totalDownloads || 0}</div>
@@ -840,7 +846,7 @@ export default function AdvancedSidebar() {
                   <Globe className="w-4 h-4 mr-2" />
                   API Status
                 </h4>
-                
+
                 <div className="space-y-2">
                   {[
                     { name: 'Settings', endpoint: '/api/settings' },
@@ -857,71 +863,65 @@ export default function AdvancedSidebar() {
                   ))}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         {/* Platform Support Info */}
         {supportedPlatforms && (
-          <Card className="bg-gradient-to-r from-blue-50 to-purple-50">
-            <CardContent className="p-4">
-              <h4 className="font-medium text-sm mb-3 flex items-center text-black dark:text-gray-800">
-                <Shield className="w-4 h-4 mr-2 text-blue-600" />
-                Supported Platforms ({supportedPlatforms.total})
-              </h4>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                {supportedPlatforms.platforms?.slice(0, 6).map((platform: any) => (
-                  <Badge 
-                    key={platform.name}
-                    variant={platform.drmProtected ? "outline" : "secondary"} 
-                    className="justify-center"
-                  >
-                    {platform.name}
-                    {platform.drmProtected && "*"}
-                  </Badge>
-                ))}
-              </div>
-              <p className="text-xs text-gray-600 mt-2">
-                * Limited to public content only
+          <div className="p-4">
+            <h4 className="font-medium text-sm mb-3 flex items-center text-black dark:text-gray-800">
+              <Shield className="w-4 h-4 mr-2 text-blue-600" />
+              Supported Platforms ({supportedPlatforms.total})
+            </h4>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {supportedPlatforms.platforms?.slice(0, 6).map((platform: any) => (
+                <Badge
+                  key={platform.name}
+                  variant={platform.drmProtected ? "outline" : "secondary"}
+                  className="justify-center"
+                >
+                  {platform.name}
+                  {platform.drmProtected && "*"}
+                </Badge>
+              ))}
+            </div>
+            <p className="text-xs text-gray-600 mt-2">
+              * Limited to public content only
+            </p>
+            {supportedPlatforms.disclaimer && (
+              <p className="text-xs text-blue-600 mt-1">
+                ⚠️ {supportedPlatforms.disclaimer}
               </p>
-              {supportedPlatforms.disclaimer && (
-                <p className="text-xs text-blue-600 mt-1">
-                  ⚠️ {supportedPlatforms.disclaimer}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+            )}
+          </div>
         )}
 
         {/* Loading Indicator */}
         {isLoading && (
-          <Card className="bg-blue-50 border-blue-200">
-            <CardContent className="p-4">
-              <div className="flex items-center">
-                <RefreshCw className="w-4 h-4 text-blue-600 mr-2 animate-spin" />
-                <span className="text-sm text-blue-800">Loading data...</span>
+          <div className="p-4">
+            <div className="flex items-center">
+              <RefreshCw className="w-4 h-4 text-blue-600 mr-2 animate-spin" />
+              <span className="text-sm text-blue-800">Loading data...</span>
+            </div>
           </div>
-        </CardContent>
-      </Card>
         )}
 
         {/* Connection Status */}
-        <Card className="bg-gradient-to-r from-gray-50 to-gray-100">
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center">
-                <div className={`w-2 h-2 rounded-full mr-2 ${isOnline ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                <span className="text-gray-600">
-                  {isOnline ? 'Connected' : 'Disconnected'}
-                </span>
-              </div>
-              <span className="text-gray-500">
-                {new Date().toLocaleTimeString()}
+        <div className="p-3">
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center">
+              <div className={`w-2 h-2 rounded-full mr-2 ${isOnline ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <span className="text-gray-600">
+                {isOnline ? 'Connected' : 'Disconnected'}
               </span>
             </div>
-          </CardContent>
-        </Card>
-    </div>
+            <span className="text-gray-500">
+              {new Date().toLocaleTimeString()}
+            </span>
+          </div>
+        </div>
+      </div>
 
       {/* Toast Container */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />

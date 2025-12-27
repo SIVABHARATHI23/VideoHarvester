@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test 4K Detection - Yenna Solla Pore</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .video-info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .test-section {
+            margin-bottom: 20px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .loading { background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Test 4K Detection - Yenna Solla Pore Video</h1>
+        
+        <div class="video-info">
+            <h3>📹 Video Information</h3>
+            <p><strong>Title:</strong> Yenna Solla Pore 8K/4K Video Song | Venghai | Dhanush, Tamannah</p>
+            <p><strong>URL:</strong> https://www.youtube.com/watch?v=cK1cVGKJNxM</p>
+            <p><strong>YouTube Quality:</strong> 4320p 8K, 2160p 4K, 1440p HD, 1080p HD, 720p, 480p, 360p</p>
+            <p><strong>Expected:</strong> Your app should detect 4K/8K and show those options</p>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 Test Quality Detection</h3>
+            <button onclick="testQualityDetection()">🔍 Test Quality Detection</button>
+            <button onclick="testVideoInfo()">📊 Test Video Info Endpoint</button>
+            <button onclick="testDirectYtdlp()">⚡ Test Direct yt-dlp</button>
+        </div>
+
+        <div id="result" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        const TEST_URL = 'https://www.youtube.com/watch?v=cK1cVGKJNxM';
+
+        async function testQualityDetection() {
+            showResult('Testing quality detection...', 'loading');
+            
+            try {
+                const response = await fetch('/api/test-quality-detection', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: TEST_URL })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const result = `✅ Quality Detection Test Results:
+
+🎬 URL: ${data.url}
+🎯 Detected Qualities: ${data.detectedQualities.join(', ')}
+
+📊 Analysis:
+- Total qualities found: ${data.detectedQualities.length}
+- 8K available: ${data.detectedQualities.includes('4320p') ? '✅ YES' : '❌ NO'}
+- 4K available: ${data.detectedQualities.includes('2160p') || data.detectedQualities.includes('4K') ? '✅ YES' : '❌ NO'}
+- 2K available: ${data.detectedQualities.includes('1440p') ? '✅ YES' : '❌ NO'}
+- 1080p available: ${data.detectedQualities.includes('1080p') ? '✅ YES' : '❌ NO'}
+
+🔍 Expected vs Actual:
+- YouTube shows: 4320p 8K, 2160p 4K, 1440p HD, 1080p HD, 720p, 480p, 360p
+- Your app detected: ${data.detectedQualities.join(', ')}
+
+💡 If 4K is not detected, there's a problem with the quality detection logic.`;
+                    
+                    showResult(result, 'success');
+                } else {
+                    showResult(`❌ Quality Detection Failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testVideoInfo() {
+            showResult('Testing video info endpoint...', 'loading');
+            
+            try {
+                const response = await fetch('/api/video-info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: TEST_URL })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const result = `✅ Video Info Test Results:
+
+🎬 URL: ${data.url}
+🎯 Available Qualities: ${data.availableQualities ? data.availableQualities.join(', ') : 'None detected'}
+📊 Max Quality: ${data.maxQuality || 'Unknown'}
+🔍 Quality Recommendation: ${data.qualityRecommendation || 'Unknown'}
+
+💡 This shows what your main app will display to users.`;
+                    
+                    showResult(result, 'success');
+                } else {
+                    showResult(`❌ Video Info Failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testDirectYtdlp() {
+            showResult('Testing direct yt-dlp command...', 'loading');
+            
+            try {
+                const response = await fetch('/api/test-ytdlp-direct', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: TEST_URL })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const result = `✅ Direct yt-dlp Test Results:
+
+🎬 URL: ${data.url}
+📊 Raw Output Length: ${data.outputLength} characters
+🔍 First 500 chars: ${data.first500Chars}
+
+💡 This shows the raw yt-dlp output to debug parsing issues.`;
+                    
+                    showResult(result, 'success');
+                } else {
+                    showResult(`❌ Direct yt-dlp Failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        function showResult(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.textContent = message;
+            resultDiv.className = `result ${type}`;
+            resultDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

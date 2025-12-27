@@ -5,6 +5,8 @@ export function useWebSocket(onMessage?: (message: WebSocketMessage) => void) {
   const [isConnected, setIsConnected] = useState(false);
   const ws = useRef<WebSocket | null>(null);
   const reconnectTimeout = useRef<NodeJS.Timeout>();
+  const reconnectAttempts = useRef(0);
+  const maxReconnectAttempts = 5;
 
   const connect = () => {
     try {
@@ -14,30 +16,44 @@ export function useWebSocket(onMessage?: (message: WebSocketMessage) => void) {
       const port = window.location.port || '5000';
       const wsUrl = `${protocol}//${host}:${port}/ws`;
       console.log('Connecting to WebSocket:', wsUrl);
+      
       ws.current = new WebSocket(wsUrl);
+      
       ws.current.onopen = () => {
         setIsConnected(true);
-        console.log("WebSocket connected");
+        reconnectAttempts.current = 0;
+        console.log("WebSocket connected successfully");
       };
+      
       ws.current.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
+          console.log('WebSocket message received:', message.type, 'id' in message ? message.id : 'N/A');
           onMessage?.(message);
         } catch (error) {
           console.error("Failed to parse WebSocket message:", error);
         }
       };
+      
       ws.current.onclose = (event) => {
         setIsConnected(false);
         console.log("WebSocket disconnected", event.code, event.reason);
-        // Reconnect after 3 seconds, but only if it wasn't a normal closure
-        if (event.code !== 1000) {
+        
+        // Reconnect logic with exponential backoff
+        if (event.code !== 1000 && reconnectAttempts.current < maxReconnectAttempts) {
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 10000);
+          reconnectAttempts.current++;
+          
+          console.log(`Attempting to reconnect WebSocket in ${delay}ms (attempt ${reconnectAttempts.current}/${maxReconnectAttempts})...`);
+          
           reconnectTimeout.current = setTimeout(() => {
-            console.log("Attempting to reconnect WebSocket...");
             connect();
-          }, 3000);
+          }, delay);
+        } else if (reconnectAttempts.current >= maxReconnectAttempts) {
+          console.error("Max WebSocket reconnection attempts reached");
         }
       };
+      
       ws.current.onerror = (error) => {
         console.error("WebSocket error:", error);
         setIsConnected(false);

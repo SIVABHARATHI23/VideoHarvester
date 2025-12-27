@@ -2,6 +2,32 @@
 
 A modern, full-stack video downloader app for YouTube, Instagram, and 1000+ platforms. VideoHarvester supports high-quality downloads (up to 4K), batch downloads, advanced options, and a beautiful, responsive UI for desktop, mobile, and TV.
 
+VideoHarvester is a tool designed to help users efficiently harvest and manage video content from various sources.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-18.3.1-blue.svg)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.6.3-blue.svg)](https://www.typescriptlang.org/)
+
+---
+
+## 📋 Table of Contents
+
+- [👀 Quick Start Preview](#-quick-start-preview)
+- [🚀 Introduction](#-introduction)
+- [✨ Features](#-features)
+- [🏗️ Architecture](#️-architecture)
+- [🛠️ Installation](#️-installation)
+- [⚙️ Configuration](#️-configuration)
+- [📱 Platform Support](#-platform-support)
+- [🖥️ Usage](#️-usage)
+- [🔌 API Documentation](#-api-documentation)
+- [❓ FAQ](#-faq)
+- [🧰 Troubleshooting](#-troubleshooting)
+- [🤝 Contributing](#-contributing)
+- [📬 Contact](#-contact)
+- [📝 License](#-license)
+
 ---
 
 ## 👀 Quick Start Preview
@@ -42,6 +68,8 @@ A modern, full-stack video downloader app for YouTube, Instagram, and 1000+ plat
 ## 🚀 Introduction
 VideoHarvester is your all-in-one solution for downloading videos and audio from popular platforms. It is designed for power users and beginners alike, with a focus on speed, reliability, and a modern user experience.
 
+VideoHarvester is a tool designed to help users efficiently harvest and manage video content from various sources.
+
 ---
 
 ## ✨ Features
@@ -65,38 +93,119 @@ VideoHarvester is your all-in-one solution for downloading videos and audio from
 
 ---
 
+## 🏗️ Architecture
+
+### **Frontend (React + TypeScript)**
+- **Framework:** React 18.3.1 with TypeScript 5.6.3
+- **UI Library:** Radix UI components with custom styling
+- **Styling:** Tailwind CSS with custom design system
+- **State Management:** React Query (TanStack Query) for server state
+- **Routing:** Wouter for lightweight routing
+- **Build Tool:** Vite for fast development and building
+- **Icons:** Lucide React for consistent iconography
+
+**Key Components:**
+- `App.tsx` - Main application wrapper with providers
+- `Home.tsx` - Main page with download form and queue
+- `DownloadForm.tsx` - Video URL input and format selection
+- `DownloadQueue.tsx` - Real-time download progress tracking
+- `Sidebar.tsx` - Settings and additional features
+- `VideoPlayer.tsx` - Built-in video preview player
+
+### **Backend (Node.js + Express)**
+- **Runtime:** Node.js with ES modules
+- **Framework:** Express.js for REST API
+- **Language:** TypeScript for type safety
+- **WebSocket:** Native WebSocket support for real-time updates
+- **Process Management:** Child process spawning for yt-dlp execution
+- **File System:** Async file operations with streaming support
+- **Database:** Drizzle ORM with PostgreSQL/Neon (optional)
+
+**Key Modules:**
+- `routes.ts` - Main API endpoints and WebSocket handling
+- `storage.ts` - File storage and management
+- `instagram-*.ts` - Instagram-specific extraction logic
+- `vite.ts` - Vite integration for development
+
+### **Core Technologies**
+- **yt-dlp:** Primary video extraction engine
+- **ffmpeg:** Audio/video processing and format conversion
+- **WebSocket:** Real-time communication between frontend and backend
+- **Express Sessions:** User session management
+- **Passport.js:** Authentication system (if implemented)
+
+---
+
 ## 🛠️ Installation
+
+### **Prerequisites**
+- Node.js 18+ 
+- npm or yarn
+- yt-dlp installed globally: `pip install yt-dlp`
+- ffmpeg installed and in PATH (for audio/video processing)
+
+### **Step-by-Step Setup**
 
 1. **Clone the repository:**
    ```sh
-   git clone <your-repo-url>
+   git clone https://github.com/SIVABHARATHI23/VideoHarvester.git
    cd VideoHarvester
    ```
+
 2. **Install backend dependencies:**
    ```sh
    npm install
    ```
-3. **Start the backend:**
-   ```sh
-   npm run dev
-   ```
-4. **Install frontend dependencies:**
+
+3. **Install frontend dependencies:**
    ```sh
    cd client
    npm install
+   cd ..
    ```
-5. **Start the frontend:**
+
+4. **Start the backend server:**
    ```sh
    npm run dev
    ```
+
+5. **Start the frontend (in a new terminal):**
+   ```sh
+   cd client
+   npm run dev
+   ```
+
 6. **Open your browser:**
-   - Go to [http://localhost:5000](http://localhost:5000)
+   - Frontend: [http://localhost:5173](http://localhost:5173) (Vite default)
+   - Backend: [http://localhost:5000](http://localhost:5000)
+
+### **Production Build**
+```sh
+# Build frontend
+cd client && npm run build
+
+# Build backend
+npm run build
+
+# Start production server
+npm start
+```
 
 ---
 
 ## ⚙️ Configuration
 
-### **Settings**
+### **Environment Variables**
+Create a `.env` file in the root directory:
+```env
+NODE_ENV=development
+PORT=5000
+DOWNLOAD_PATH=./downloads
+MAX_CONCURRENT_DOWNLOADS=3
+DOWNLOAD_TIMEOUT=900000
+```
+
+### **Settings Panel**
 - Access the settings panel from the header.
 - Set default download quality, format, notifications, and more.
 - Change the download save location (server-side).
@@ -142,6 +251,171 @@ VideoHarvester is your all-in-one solution for downloading videos and audio from
 
 ---
 
+## 🔌 API Documentation
+
+### **Base URL**
+```
+http://localhost:5000
+```
+
+### **REST API Endpoints**
+
+#### **Video Analysis**
+```http
+POST /api/analyze
+Content-Type: application/json
+
+{
+  "url": "https://youtube.com/watch?v=...",
+  "platform": "youtube"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "title": "Video Title",
+    "platform": "youtube",
+    "duration": "10:30",
+    "thumbnail": "https://...",
+    "formats": [
+      {
+        "formatId": "137",
+        "height": 1080,
+        "width": 1920,
+        "fps": 30,
+        "ext": "mp4"
+      }
+    ]
+  }
+}
+```
+
+#### **Start Download**
+```http
+POST /api/download
+Content-Type: application/json
+
+{
+  "url": "https://youtube.com/watch?v=...",
+  "format": "mp4",
+  "quality": "1080p",
+  "filename": "custom_name"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 123,
+    "status": "queued",
+    "message": "Download added to queue"
+  }
+}
+```
+
+#### **Get Download Status**
+```http
+GET /api/downloads/:id
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 123,
+    "status": "downloading",
+    "progress": 45,
+    "speed": "2.5 MB/s",
+    "eta": "00:30"
+  }
+}
+```
+
+#### **Get All Downloads**
+```http
+GET /api/downloads
+```
+
+#### **Cancel Download**
+```http
+DELETE /api/downloads/:id
+```
+
+#### **Get Available Formats**
+```http
+GET /api/formats?url=https://youtube.com/watch?v=...
+```
+
+### **WebSocket API**
+
+#### **Connection**
+```javascript
+const ws = new WebSocket('ws://localhost:5000');
+```
+
+#### **Message Types**
+
+**Download Progress:**
+```json
+{
+  "type": "download_progress",
+  "data": {
+    "id": 123,
+    "progress": 75,
+    "speed": "3.2 MB/s",
+    "eta": "00:15"
+  }
+}
+```
+
+**Download Complete:**
+```json
+{
+  "type": "download_complete",
+  "data": {
+    "id": 123,
+    "filename": "video.mp4",
+    "filepath": "/downloads/video.mp4",
+    "filesize": "125MB"
+  }
+}
+```
+
+**Download Error:**
+```json
+{
+  "type": "download_error",
+  "data": {
+    "id": 123,
+    "error": "Video unavailable in selected quality"
+  }
+}
+```
+
+### **Error Responses**
+```json
+{
+  "success": false,
+  "error": "Error message",
+  "code": "ERROR_CODE"
+}
+```
+
+**Common Error Codes:**
+- `INVALID_URL` - Malformed or unsupported URL
+- `PLATFORM_NOT_SUPPORTED` - Platform not supported
+- `QUALITY_NOT_AVAILABLE` - Requested quality not available
+- `DOWNLOAD_FAILED` - Download process failed
+- `FILE_TOO_LARGE` - File exceeds size limit
+
+---
+
 ## ❓ FAQ
 
 **Q: Why do I only get 360p when I select 4K?**
@@ -162,6 +436,11 @@ VideoHarvester is your all-in-one solution for downloading videos and audio from
 **Q: How do I update yt-dlp?**
 - Run `pip install -U yt-dlp` or download the latest binary from the [yt-dlp GitHub](https://github.com/yt-dlp/yt-dlp).
 
+**Q: How does the WebSocket connection work?**
+- The frontend establishes a WebSocket connection to the backend for real-time updates.
+- All download progress, completion, and error messages are sent via WebSocket.
+- The connection automatically reconnects if disconnected.
+
 ---
 
 ## 🧰 Troubleshooting
@@ -175,25 +454,47 @@ VideoHarvester is your all-in-one solution for downloading videos and audio from
   - Only public/free content is supported.
 - **ffprobe not found:**
   - Make sure ffprobe is installed and in your PATH for resolution detection.
+- **Port conflicts:**
+  - Check if ports 5000 (backend) and 5173 (frontend) are available.
+  - Modify the port in your configuration if needed.
 
 ---
 
 ## 🤝 Contributing
 
 1. Fork the repo and create your branch: `git checkout -b feature/your-feature`
-2. Commit your changes: `git commit -am 'Add new feature'`
-3. Push to the branch: `git push origin feature/your-feature`
-4. Open a pull request
+2. Install dependencies: `npm install && cd client && npm install`
+3. Make your changes and test thoroughly
+4. Commit your changes: `git commit -am 'Add new feature'`
+5. Push to the branch: `git push origin feature/your-feature`
+6. Open a pull request
+
+**Development Guidelines:**
+- Follow TypeScript best practices
+- Use ESLint and Prettier for code formatting
+- Write tests for new features
+- Update documentation for API changes
+- Test on multiple platforms
 
 ---
 
 ## 📬 Contact
 - **Issues:** Use the GitHub Issues tab for bug reports and feature requests.
-- **Email:** [your-email@example.com]
-- **Maintainer:** [Your Name]
+- **Email:** [support@videoharvester.com](mailto:support@videoharvester.com)
+- **Maintainer:** [SIVABHARATHI23](https://github.com/SIVABHARATHI23)
 
 ---
 
 ## 📝 License
 MIT 
 
+---
+
+## 🙏 Acknowledgments
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - Video extraction engine
+- [Radix UI](https://www.radix-ui.com/) - Accessible UI components
+- [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
+- [React Query](https://tanstack.com/query) - Server state management 
+
+
+_Last updated: August 26, 2025_

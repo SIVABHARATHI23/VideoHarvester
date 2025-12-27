@@ -28,7 +28,7 @@ export const downloadSettings = pgTable("download_settings", {
   autoPlay: boolean("auto_play").default(false),
   theme: text("theme").default("light"),
   notifications: boolean("notifications").default(true),
-  maxConcurrentDownloads: integer("max_concurrent_downloads").default(3),
+  maxConcurrentDownloads: integer("max_concurrent_downloads").default(6),
 });
 
 export const insertDownloadItemSchema = createInsertSchema(downloadItems).omit({
@@ -52,4 +52,5 @@ export type WebSocketMessage =
   | { type: "download_error"; id: number; error: string }
   | { type: "download_started"; id: number }
   | { type: "download_warning"; id: number; message: string }
-  | { type: "download_info"; id: number; message: string };
+  | { type: "download_info"; id: number; message: string }
+  | { type: "queue_status"; activeDownloads: number; queuedDownloads: number };
