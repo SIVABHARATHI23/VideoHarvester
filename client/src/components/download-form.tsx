@@ -144,6 +144,25 @@ export default function AdvancedDownloadForm() {
     return "Unknown Platform";
   };
 
+  useEffect(() => {
+    const isValidUrl = (urlString: string) => {
+      try {
+        const u = new URL(urlString);
+        return u.protocol === 'http:' || u.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    };
+
+    if (url.trim() && isValidUrl(url) && !isAnalyzing && (!videoInfo || infoError)) {
+      const timer = setTimeout(() => {
+        setIsAnalyzing(true);
+        fetchVideoInfo(url).catch(() => { });
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [url]);
+
   const fetchVideoInfo = async (videoUrl: string) => {
     setIsAnalyzing(true);
     setInfoError(null);
@@ -480,48 +499,100 @@ export default function AdvancedDownloadForm() {
 
           <CardContent className="space-y-8">
             {/* URL Input Section */}
-            <div className="space-y-6">
-              <div className="relative group">
-                <div className="absolute inset-0 bg-gradient-purple-blue rounded-2xl blur-md opacity-20 group-hover:opacity-40 transition-opacity duration-300"></div>
-                <div className="relative glass-card rounded-2xl p-1 border-2 border-white/20 dark:border-white/10 bg-white/50 dark:bg-black/20">
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Input
-                      type="url"
-                      placeholder="🔗 Paste any video URL here..."
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      className="flex-1 h-14 sm:h-16 text-base sm:text-lg border-0 bg-transparent focus:ring-2 focus:ring-purple-500/50 px-4 sm:px-6 transition-all duration-300 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
-                    />
-                    <Button
-                      onClick={handleSubmit}
-                      disabled={isAnalyzing || !url.trim()}
-                      className="h-12 sm:h-14 px-6 sm:px-8 m-1 bg-gradient-purple-blue hover:shadow-glow text-white rounded-xl font-semibold text-base sm:text-lg transition-all duration-300 hover-scale hover-lift w-full sm:w-auto"
-                    >
-                      {isAnalyzing ? (
-                        <>
-                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                          Analyzing...
-                        </>
-                      ) : (
-                        <>
-                          <Download className="w-5 h-5 mr-2" />
-                          Analyze
-                        </>
-                      )}
-                    </Button>
-                    {videoInfo && (
-                      <Button
-                        onClick={handleDownload}
-                        disabled={isAnalyzing}
-                        className="h-12 sm:h-14 px-6 sm:px-8 m-1 bg-gradient-teal-green hover:shadow-glow text-white rounded-xl font-semibold text-base sm:text-lg transition-all duration-300 hover-scale hover-lift animate-scale-up w-full sm:w-auto"
-                      >
-                        <Download className="w-5 h-5 mr-2" />
+            <div className="space-y-10">
+              <div className="relative group max-w-5xl mx-auto w-full">
+                <div className="absolute inset-0 bg-gradient-purple-blue rounded-full blur-xl opacity-40 group-hover:opacity-60 transition-opacity duration-500 animate-pulse"></div>
+                <div className="relative flex flex-col sm:flex-row items-center bg-white dark:bg-modern-surface border-4 border-white dark:border-white/10 rounded-3xl sm:rounded-full shadow-2xl p-2 overflow-hidden transition-all duration-300 focus-within:ring-4 focus-within:ring-purple-500/30">
+                  <Input
+                    type="url"
+                    placeholder="🔗 Paste YouTube, Instagram, or TikTok URL here..."
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    className="flex-1 h-16 sm:h-20 text-lg sm:text-xl border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-6 sm:px-8 transition-all duration-300 text-gray-900 dark:text-white placeholder:text-gray-400 font-medium"
+                  />
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={isAnalyzing || !url.trim()}
+                    className="h-14 sm:h-16 px-10 bg-gradient-purple-blue hover:shadow-glow-purple text-white rounded-2xl sm:rounded-full font-bold text-lg sm:text-lg transition-all duration-300 hover-scale w-full sm:w-auto mt-2 sm:mt-0 shadow-lg"
+                  >
+                    {isAnalyzing ? (
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    ) : (
+                      <span className="flex items-center">
+                        <Download className="w-6 h-6 mr-2" />
                         Download
-                      </Button>
+                      </span>
                     )}
-                  </div>
+                  </Button>
                 </div>
               </div>
+
+              {/* Premium Result Card (SaveFrom style) */}
+              {videoInfo && !infoError && (() => {
+                const info = videoInfo as VideoInfo;
+                const hasThumbnail = info.thumbnail && info.thumbnail.trim() !== '' && info.thumbnail !== 'NA' && !thumbnailError;
+
+                return (
+                  <div className="bg-white/90 dark:bg-modern-surface/90 rounded-3xl p-6 md:p-8 border border-white/40 dark:border-white/10 shadow-2xl backdrop-blur-xl animate-fade-in flex flex-col md:flex-row gap-8 items-start max-w-5xl mx-auto w-full">
+                    {/* Thumbnail */}
+                    <div className="w-full md:w-80 aspect-video rounded-2xl overflow-hidden shadow-lg bg-gray-200 dark:bg-gray-800 flex-shrink-0 relative group">
+                      {hasThumbnail ? (
+                        <img
+                          src={info.thumbnail}
+                          alt={info.title}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          onError={() => setThumbnailError(true)}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Video className="w-12 h-12 text-gray-400" />
+                        </div>
+                      )}
+                      <div className="absolute bottom-2 right-2 bg-black/80 text-white px-3 py-1 rounded-lg text-sm font-semibold flex items-center backdrop-blur-md">
+                        <Clock className="w-4 h-4 mr-1.5" /> {info.duration || 'N/A'}
+                      </div>
+                    </div>
+
+                    {/* Info & Fast Download Controls */}
+                    <div className="flex-1 w-full flex flex-col h-full justify-between space-y-4 md:space-y-0">
+                      <div>
+                        <h3 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white line-clamp-2 leading-tight pr-8 relative">
+                          {info.title || 'Unknown Title'}
+                          <button onClick={() => copyToClipboard(info.title || '')} className="absolute top-0 right-0 p-2 text-gray-400 hover:text-blue-500 transition-colors"><Copy className="w-4 h-4" /></button>
+                        </h3>
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600 dark:text-gray-400 font-medium mt-4">
+                          <span className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 px-3 py-1 rounded-full border border-blue-200 dark:border-blue-800/50">{info.platform || 'Unknown'}</span>
+                          {info.views && <span className="bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full flex items-center border border-gray-200 dark:border-gray-700"><Play className="w-3 h-3 mr-1.5" /> {info.views} Views</span>}
+                        </div>
+                      </div>
+
+                      <div className="mt-6 flex flex-col sm:flex-row gap-4 items-center w-full">
+                        <Button
+                          onClick={handleDownload}
+                          disabled={isAnalyzing}
+                          className="w-full sm:w-auto h-14 sm:h-16 px-10 bg-gradient-teal-green hover:shadow-glow text-white rounded-2xl font-black text-lg sm:text-xl transition-all duration-300 hover-scale hover-lift shadow-xl"
+                        >
+                          <Download className="w-6 h-6 mr-2" />
+                          Download Now
+                        </Button>
+                        <div className="flex flex-col text-sm text-gray-600 dark:text-gray-400 w-full sm:w-auto">
+                          <div className="bg-gray-50 dark:bg-modern-surface-alt p-3 rounded-xl border border-gray-100 dark:border-white/5">
+                            <div className="flex justify-between gap-4 py-1 border-b border-gray-200 dark:border-gray-700">
+                              <span>Format:</span>
+                              <span className="text-gray-900 dark:text-white font-bold uppercase">{selectedFormat}</span>
+                            </div>
+                            <div className="flex justify-between gap-4 py-1">
+                              <span>Quality:</span>
+                              <span className="text-gray-900 dark:text-white font-bold">{selectedQuality}</span>
+                            </div>
+                          </div>
+                          <span className="text-xs text-blue-500 mt-2 text-center sm:text-left">(Check options below for more formats)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Download Location Selection */}
               <div className="space-y-4">
@@ -925,69 +996,15 @@ export default function AdvancedDownloadForm() {
         </Card>
       </div>
 
-      {/* Video Information Card */}
-      {videoInfo !== null && (() => {
-        const info = videoInfo as VideoInfo;
-        const hasThumbnail = info.thumbnail && info.thumbnail.trim() !== '' && info.thumbnail !== 'NA' && !thumbnailError;
-        
-        return (
-          <Card className="bg-white/80 dark:bg-modern-surface/80 shadow-lg border-0 backdrop-blur-xl">
-            <CardContent className="p-6">
-              <div className="flex items-start space-x-6">
-                {/* Thumbnail with fallback */}
-                <div className="w-32 h-24 flex-shrink-0 rounded-lg shadow-md overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                  {hasThumbnail ? (
-                    <img
-                      src={info.thumbnail}
-                      alt="Video thumbnail"
-                      className="w-full h-full object-cover"
-                      onError={() => setThumbnailError(true)}
-                    />
-                  ) : (
-                    <Video className="w-8 h-8 text-gray-400" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-2 break-words">
-                    {info.title || 'Unknown Title'}
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600 dark:text-gray-400">
-                    <div className="flex items-center">
-                      <Clock className="w-4 h-4 mr-1 flex-shrink-0" />
-                      <span>Duration: {info.duration || 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Globe className="w-4 h-4 mr-1 flex-shrink-0" />
-                      <span>Platform: {info.platform || 'Unknown'}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Download className="w-4 h-4 mr-1 flex-shrink-0" />
-                      <span>Size: {info.fileSize || 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Play className="w-4 h-4 mr-1 flex-shrink-0" />
-                      <span>Views: {info.views || 'N/A'}</span>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => copyToClipboard(info.title || '')}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex-shrink-0"
-                  title="Copy title"
-                >
-                  <Copy className="w-4 h-4" />
-                </button>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })()}
+      {/* Bottom video card removed in favor of top card */}
 
-      {infoError && (
-        <Card className="bg-red-50 border-0 shadow-lg">
-          <CardContent className="p-6 text-red-700">{infoError}</CardContent>
-        </Card>
-      )}
-    </div>
+      {
+        infoError && (
+          <Card className="bg-red-50 border-0 shadow-lg">
+            <CardContent className="p-6 text-red-700">{infoError}</CardContent>
+          </Card>
+        )
+      }
+    </div >
   );
 }

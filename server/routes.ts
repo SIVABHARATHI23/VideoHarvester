@@ -358,26 +358,12 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
     // IMPROVED FORMAT SELECTION: Use simplified format strings that actually work
     const requestedHeight = getHeightFromQuality(item.quality);
 
-    if (requestedHeight >= 2160) {
-      // 4K Strategy: Simplified format that actually gets 4K
-      args.push('--format', `bestvideo[height>=${requestedHeight}][ext=mp4]+bestaudio[ext=m4a]/best[height>=${requestedHeight}][ext=mp4]/best[ext=mp4]`);
-      console.log(`🎯 4K format - simplified for better 4K compatibility: ${requestedHeight}p`);
-    } else if (requestedHeight >= 1440) {
-      // 2K Strategy: Simplified format
-      args.push('--format', `bestvideo[height>=${requestedHeight}][ext=mp4]+bestaudio[ext=m4a]/best[height>=${requestedHeight}][ext=mp4]/best[ext=mp4]`);
-      console.log(`🎯 2K format - simplified: ${requestedHeight}p`);
-    } else if (requestedHeight >= 1080) {
-      // 1080p Strategy: Simplified format
-      args.push('--format', `bestvideo[height>=${requestedHeight}][ext=mp4]+bestaudio[ext=m4a]/best[height>=${requestedHeight}][ext=mp4]/best[ext=mp4]`);
-      console.log(`🎯 1080p format - simplified: ${requestedHeight}p`);
-    } else if (requestedHeight >= 720) {
-      // 720p Strategy: Simplified format
-      args.push('--format', `bestvideo[height>=${requestedHeight}][ext=mp4]+bestaudio[ext=m4a]/best[height>=${requestedHeight}][ext=mp4]/best[ext=mp4]`);
-      console.log(`🎯 720p format - simplified: ${requestedHeight}p`);
+    if (item.quality === 'best') {
+      args.push('--format', `bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best`);
+      console.log(`🎯 Best quality requested`);
     } else {
-      // For lower qualities, prefer single file with both video and audio
-      args.push('--format', `best[height>=${requestedHeight}][ext=mp4]/best[ext=mp4]`);
-      console.log(`🎯 Lower quality format with MP4 preference`);
+      args.push('--format', `bestvideo[height<=${requestedHeight}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${requestedHeight}][ext=mp4]/best[ext=mp4]/best`);
+      console.log(`🎯 Specific quality requested: up to ${requestedHeight}p`);
     }
 
     // CRITICAL: Ensure proper merging and output format
@@ -394,7 +380,11 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
   } else {
     // Non-YouTube format selection - prefer single file formats
     const requestedHeight = getHeightFromQuality(item.quality);
-    args.push('--format', `best[height>=${requestedHeight}][ext=mp4]/best[ext=mp4]`);
+    if (item.quality === 'best') {
+      args.push('--format', `best[ext=mp4]/best`);
+    } else {
+      args.push('--format', `bestvideo[height<=${requestedHeight}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${requestedHeight}][ext=mp4]/best[ext=mp4]/best`);
+    }
 
     // Add metadata for non-YouTube videos
     args.push(
@@ -559,11 +549,11 @@ function formatDuration(seconds: number | string | undefined): string {
   if (!seconds) return 'Unknown';
   const sec = typeof seconds === 'string' ? parseFloat(seconds) : seconds;
   if (isNaN(sec)) return 'Unknown';
-  
+
   const hours = Math.floor(sec / 3600);
   const minutes = Math.floor((sec % 3600) / 60);
   const secs = Math.floor(sec % 60);
-  
+
   if (hours > 0) {
     return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }
@@ -575,16 +565,16 @@ function formatFileSize(bytes: number | string | undefined): string {
   if (!bytes) return 'Unknown';
   const size = typeof bytes === 'string' ? parseFloat(bytes) : bytes;
   if (isNaN(size)) return 'Unknown';
-  
+
   const units = ['B', 'KB', 'MB', 'GB'];
   let unitIndex = 0;
   let fileSize = size;
-  
+
   while (fileSize >= 1024 && unitIndex < units.length - 1) {
     fileSize /= 1024;
     unitIndex++;
   }
-  
+
   return `${fileSize.toFixed(2)} ${units[unitIndex]}`;
 }
 
@@ -659,7 +649,7 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
       if (code === 0 && stdout.trim()) {
         try {
           const jsonData = JSON.parse(stdout.trim());
-          
+
           // Extract all available information from JSON
           const info: VideoInfo = {
             title: jsonData.title || jsonData.fulltitle || 'Unknown Title',
@@ -672,7 +662,7 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
             availableQualities: [],
             fileSize: formatFileSize(jsonData.filesize || jsonData.filesize_approx)
           };
-          
+
           resolve(info);
         } catch (parseError) {
           // Fallback to simple extraction if JSON parse fails
@@ -2306,15 +2296,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }
 
-      // Use default qualities immediately (don't wait for quality detection)
-      // Quality detection can happen in background if needed
-      const availableQualities = isYouTube ?
-        ['best', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p'] :
-        ['best', '1080p', '720p', '480p', '360p', '240p', '144p'];
+      // Use the actual qualities parsed from json dump
+      let availableQualities = info.availableQualities && info.availableQualities.length > 1 
+        ? info.availableQualities 
+        : (isYouTube ?
+          ['best', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p'] :
+          ['best', '1080p', '720p', '480p', '360p', '240p', '144p']);
 
-      // Determine max quality and recommendation
+      // Determine max quality
       const maxQuality = availableQualities.find(q => q !== 'best') || '1080p';
-      const qualityRecommendation = availableQualities.find(q => q === '1080p') || maxQuality;
+      // Default to best quality as the recommendation! SaveFrom always auto-selects highest without freezing.
+      const qualityRecommendation = 'best';
 
       const response = {
         ...info,
@@ -2327,7 +2319,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         supports1080p: availableQualities.includes('1080p') || availableQualities.includes('Full HD'),
         supports720p: availableQualities.includes('720p') || availableQualities.includes('HD'),
         bypassApplied: isYouTube,
-        qualityDetectionApplied: false // Set to false since we're using defaults for speed
+        qualityDetectionApplied: true 
       };
 
       console.log(`✅ Video info extracted quickly:`, {
