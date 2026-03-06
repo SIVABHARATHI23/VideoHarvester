@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { X, Download, Volume2, VolumeX, Maximize, Minimize } from "lucide-react";
+import { API_URL } from "@/lib/api";
+
 
 interface VideoPlayerProps {
   isOpen: boolean;
@@ -14,7 +16,8 @@ export function VideoPlayer({ isOpen, onClose, videoTitle, fileName, downloadId 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
 
-  const videoUrl = `/api/video/${encodeURIComponent(fileName)}`;
+  const videoUrl = `${API_URL}/api/video/${encodeURIComponent(fileName)}`;
+
 
   const toggleFullscreen = () => {
     setIsFullscreen(!isFullscreen);
@@ -26,7 +29,7 @@ export function VideoPlayer({ isOpen, onClose, videoTitle, fileName, downloadId 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent 
+      <DialogContent
         className={`${isFullscreen ? 'max-w-full max-h-full w-screen h-screen' : 'max-w-4xl'} p-0`}
         aria-describedby="video-player-description"
       >
@@ -65,7 +68,7 @@ export function VideoPlayer({ isOpen, onClose, videoTitle, fileName, downloadId 
               </div>
             </div>
           </DialogHeader>
-          
+
           {/* Hidden description for accessibility */}
           <div id="video-player-description" className="sr-only">
             Video player for {videoTitle}. Use controls to play, pause, adjust volume, or view fullscreen.
@@ -78,8 +81,9 @@ export function VideoPlayer({ isOpen, onClose, videoTitle, fileName, downloadId 
               controls
               autoPlay
               muted={isMuted}
-              poster="/api/placeholder-thumbnail.jpg"
+              poster={`${API_URL}/api/placeholder-thumbnail.jpg`}
             >
+
               <source src={videoUrl} type="video/mp4" />
               Your browser does not support the video tag.
             </video>

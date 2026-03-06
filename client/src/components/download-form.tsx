@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { FeatureHighlights } from "@/components/feature-highlights";
+import { API_URL } from "@/lib/api";
+
 
 interface VideoInfo {
   title: string;
@@ -85,7 +87,8 @@ export default function AdvancedDownloadForm() {
 
   // WebSocket: update download history on relevant events
   const fetchHistory = useCallback(() => {
-    fetch('/api/downloads')
+    fetch(`${API_URL}/api/downloads`)
+
       .then(res => res.json())
       .then((data: any) => {
         // Handle the new server response structure
@@ -170,7 +173,8 @@ export default function AdvancedDownloadForm() {
     setThumbnailError(false);
     try {
       console.log('Fetching video info for URL:', videoUrl);
-      const res = await fetch("/api/video-info", {
+      const res = await fetch(`${API_URL}/api/video-info`, {
+
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: videoUrl }),
@@ -276,7 +280,8 @@ export default function AdvancedDownloadForm() {
 
       console.log('🎵 Full request body:', requestBody);
 
-      const res = await fetch("/api/downloads", {
+      const res = await fetch(`${API_URL}/api/downloads`, {
+
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
@@ -330,7 +335,8 @@ export default function AdvancedDownloadForm() {
     const urls: string[] = batchUrls.split('\n').filter((u: string) => u.trim());
     for (const u of urls) {
       try {
-        await fetch("/api/downloads", {
+        await fetch(`${API_URL}/api/downloads`, {
+
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -459,8 +465,9 @@ export default function AdvancedDownloadForm() {
 
   const handleRemoveDownload = async (id: number) => {
     try {
-      const res = await fetch(`/api/downloads/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_URL}/api/downloads/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to remove download');
+
       toast({ title: 'Removed', description: 'Download removed from history.' });
       fetchHistory();
     } catch (err) {

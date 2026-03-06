@@ -14,6 +14,8 @@ import {
 import { useWebSocket } from "@/hooks/use-websocket";
 import type { WebSocketMessage } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { API_URL } from "@/lib/api";
+
 
 interface Download {
   id: number;
@@ -61,7 +63,8 @@ export default function AdvancedDownloadQueue() {
   // Mock data with advanced features
   useEffect(() => {
     setIsLoading(true);
-    fetch('/api/downloads')
+    fetch(`${API_URL}/api/downloads`)
+
       .then(res => res.json())
       .then((data: any) => {
         // Handle the new server response structure
@@ -111,7 +114,8 @@ export default function AdvancedDownloadQueue() {
 
     if (["download_progress", "download_complete", "download_error", "download_started", "download_info", "download_warning"].includes(message.type)) {
       // Refetch downloads from backend
-      fetch('/api/downloads')
+      fetch(`${API_URL}/api/downloads`)
+
         .then(res => res.json())
         .then((data: any) => {
           // Handle the new server response structure
@@ -249,8 +253,9 @@ export default function AdvancedDownloadQueue() {
       let successCount = 0;
       for (const id of ids) {
         try {
-          const res = await fetch(`/api/downloads/${id}`, { method: 'DELETE' });
+          const res = await fetch(`${API_URL}/api/downloads/${id}`, { method: 'DELETE' });
           if (res.ok) successCount++;
+
         } catch { }
       }
       if (successCount > 0) {
@@ -259,8 +264,9 @@ export default function AdvancedDownloadQueue() {
         toast({ title: 'Delete failed', description: 'Could not delete selected downloads.', variant: 'destructive' });
       }
       // Refetch downloads
-      fetch('/api/downloads')
+      fetch(`${API_URL}/api/downloads`)
         .then(res => res.json())
+
         .then((data: any) => {
           // Handle the new server response structure
           const downloadsArray = data.downloads || data;
@@ -287,12 +293,14 @@ export default function AdvancedDownloadQueue() {
 
   const handleRemoveDownload = async (id: number) => {
     try {
-      const res = await fetch(`/api/downloads/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_URL}/api/downloads/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to remove download');
+
       toast({ title: 'Removed', description: 'Download removed from queue.' });
       // Refetch downloads
-      fetch('/api/downloads')
+      fetch(`${API_URL}/api/downloads`)
         .then(res => res.json())
+
         .then((data: any) => {
           // Handle the new server response structure
           const downloadsArray = data.downloads || data;
@@ -723,8 +731,9 @@ export default function AdvancedDownloadQueue() {
                                         size="sm"
                                         onClick={async () => {
                                           try {
-                                            const response = await fetch('/api/open-folder');
+                                            const response = await fetch(`${API_URL}/api/open-folder`);
                                             const data = await response.json();
+
                                             if (data.success) {
                                               // Try to open the folder using the File System Access API
                                               if ('showDirectoryPicker' in window) {
@@ -754,10 +763,11 @@ export default function AdvancedDownloadQueue() {
                                         size="sm"
                                         onClick={() => {
                                           const link = document.createElement('a');
-                                          link.href = `/api/download/${download.id}`;
+                                          link.href = `${API_URL}/api/download/${download.id}`;
                                           link.download = `${download.title}.${download.format}`;
                                           link.click();
                                         }}
+
                                         className="bg-green-500 hover:bg-green-600 text-white"
                                       >
                                         <Download className="w-4 h-4 mr-2" />

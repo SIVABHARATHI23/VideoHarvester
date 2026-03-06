@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { WebSocketMessage } from "@shared/schema";
+import { WS_URL } from "@/lib/api";
+
 
 export function useWebSocket(onMessage?: (message: WebSocketMessage) => void) {
   const [isConnected, setIsConnected] = useState(false);
@@ -10,21 +12,18 @@ export function useWebSocket(onMessage?: (message: WebSocketMessage) => void) {
 
   const connect = () => {
     try {
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      // Ensure we use the correct host and port
-      const host = window.location.hostname || 'localhost';
-      const port = window.location.port || '5000';
-      const wsUrl = `${protocol}//${host}:${port}/ws`;
+      const wsUrl = WS_URL;
       console.log('Connecting to WebSocket:', wsUrl);
-      
+
+
       ws.current = new WebSocket(wsUrl);
-      
+
       ws.current.onopen = () => {
         setIsConnected(true);
         reconnectAttempts.current = 0;
         console.log("WebSocket connected successfully");
       };
-      
+
       ws.current.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
@@ -34,18 +33,18 @@ export function useWebSocket(onMessage?: (message: WebSocketMessage) => void) {
           console.error("Failed to parse WebSocket message:", error);
         }
       };
-      
+
       ws.current.onclose = (event) => {
         setIsConnected(false);
         console.log("WebSocket disconnected", event.code, event.reason);
-        
+
         // Reconnect logic with exponential backoff
         if (event.code !== 1000 && reconnectAttempts.current < maxReconnectAttempts) {
           const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 10000);
           reconnectAttempts.current++;
-          
+
           console.log(`Attempting to reconnect WebSocket in ${delay}ms (attempt ${reconnectAttempts.current}/${maxReconnectAttempts})...`);
-          
+
           reconnectTimeout.current = setTimeout(() => {
             connect();
           }, delay);
@@ -53,7 +52,7 @@ export function useWebSocket(onMessage?: (message: WebSocketMessage) => void) {
           console.error("Max WebSocket reconnection attempts reached");
         }
       };
-      
+
       ws.current.onerror = (error) => {
         console.error("WebSocket error:", error);
         setIsConnected(false);
@@ -65,7 +64,7 @@ export function useWebSocket(onMessage?: (message: WebSocketMessage) => void) {
 
   useEffect(() => {
     connect();
-    
+
     return () => {
       if (reconnectTimeout.current) {
         clearTimeout(reconnectTimeout.current);
