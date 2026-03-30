@@ -16,8 +16,8 @@ export function log(message: string, source = "express") {
 }
 
 export async function setupVite(app: Express, server: Server) {
-  const { createServer: createViteServer, createLogger } = await import("vite");
-  const { default: viteConfig } = await import("../vite.config");
+  const vitePkg = "vite";
+  const { createServer: createViteServer, createLogger } = await import(vitePkg);
 
   const viteLogger = createLogger();
   const serverOptions = {
@@ -29,17 +29,23 @@ export async function setupVite(app: Express, server: Server) {
   console.log('Setting up Vite with HMR on port 5000');
 
   const vite = await createViteServer({
-    ...viteConfig,
     configFile: false,
     customLogger: {
       ...viteLogger,
-      error: (msg, options) => {
+      error: (msg: string, options: any) => {
         viteLogger.error(msg, options);
         process.exit(1);
       },
     },
     server: serverOptions,
     appType: "custom",
+    resolve: {
+      alias: {
+        "@": path.resolve(import.meta.dirname, "..", "client", "src"),
+        "@shared": path.resolve(import.meta.dirname, "..", "shared"),
+        "@assets": path.resolve(import.meta.dirname, "..", "attached_assets"),
+      },
+    },
   });
 
   app.use(vite.middlewares);
