@@ -165,7 +165,12 @@ function validateYtDlp(): boolean {
     require('child_process').execSync(`${which} ${ytDlpPath}`, { stdio: 'ignore' });
     return true;
   } catch {
-    return existsSync('./yt-dlp') || existsSync('./yt-dlp.exe');
+    return (
+      existsSync('./yt-dlp') || 
+      existsSync('./yt-dlp.exe') || 
+      existsSync('/usr/local/bin/yt-dlp') ||
+      existsSync('/usr/bin/yt-dlp')
+    );
   }
 }
 
