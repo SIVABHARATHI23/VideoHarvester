@@ -21,10 +21,11 @@ FROM node:18-alpine
 WORKDIR /app
 
 # Install production system dependencies
-RUN apk add --no-cache python3 py3-pip ffmpeg curl
+RUN apk add --no-cache python3 ffmpeg curl
 
-# Install yt-dlp via pip (more reliable for Linux)
-RUN pip3 install yt-dlp
+# Install yt-dlp binary directly (more reliable than pip in Alpine)
+RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
+    chmod a+rx /usr/local/bin/yt-dlp
 
 # Copy production node_modules from builder or install fresh
 COPY package*.json ./
