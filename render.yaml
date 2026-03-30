@@ -1,10 +1,8 @@
 services:
   - type: web
     name: videoharvester
-    env: node
-    buildCommand: npm run build
-    startCommand: npm start
+    env: docker
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
-        value: production 
+        value: production

@@ -70,6 +70,7 @@ export default function AdvancedDownloadForm() {
   // New state for format selection dropdown
   const [showFormatDropdown, setShowFormatDropdown] = useState<boolean>(false);
   const [selectedFormatId, setSelectedFormatId] = useState<string>("");
+  const [showAllFormats, setShowAllFormats] = useState<boolean>(false);
 
   // Advanced options
   const [audioCodec, setAudioCodec] = useState<string>("mp3");
@@ -77,7 +78,7 @@ export default function AdvancedDownloadForm() {
   const [startTime, setStartTime] = useState<string>("");
   const [endTime, setEndTime] = useState<string>("");
   const [subtitles, setSubtitles] = useState<boolean>(false);
-  const [thumbnail, setThumbnail] = useState<boolean>(false);
+  const [saveThumbnail, setSaveThumbnail] = useState<boolean>(false);
   const [metadata, setMetadata] = useState<boolean>(true);
   const [customFilename, setCustomFilename] = useState<string>("");
   const [downloadLocation, setDownloadLocation] = useState<string>("Downloads/Videos");
@@ -143,6 +144,7 @@ export default function AdvancedDownloadForm() {
     if (url.includes("tiktok.com")) return "TikTok";
     if (url.includes("twitter.com") || url.includes("x.com")) return "Twitter/X";
     if (url.includes("facebook.com")) return "Facebook";
+    if (url.includes("pinterest.com") || url.includes("pin.it")) return "Pinterest";
     // if (url.includes("vimeo.com")) return "Vimeo";
     return "Unknown Platform";
   };
@@ -163,6 +165,9 @@ export default function AdvancedDownloadForm() {
         fetchVideoInfo(url).catch(() => { });
       }, 700);
       return () => clearTimeout(timer);
+    } else if (!url.trim()) {
+      setVideoInfo(null);
+      setInfoError(null);
     }
   }, [url]);
 
@@ -223,7 +228,12 @@ export default function AdvancedDownloadForm() {
     await fetchVideoInfo(url);
   };
 
-  const handleDownload = async () => {
+  const handleDownload = async (overrideFormat?: string, overrideQuality?: string, overrideFormatId?: string, overrideFileSize?: string) => {
+    const finalFormat = overrideFormat || selectedFormat;
+    const finalQuality = overrideQuality || selectedQuality;
+    const finalFormatId = overrideFormatId || selectedFormatId;
+    const finalFileSize = overrideFileSize;
+
     if (!url.trim()) {
       toast({
         title: "URL Required",
@@ -234,17 +244,12 @@ export default function AdvancedDownloadForm() {
     }
 
     // Additional validation for MP3 format
-    if (selectedFormat === 'mp3') {
-      if (!selectedQuality || selectedQuality === '') {
-        setSelectedQuality('best');
-        console.log('🎵 Set default quality to best for MP3');
-      }
-
+    if (finalFormat === 'mp3') {
       // Validate MP3 configuration
       console.log('🎵 MP3 download validation:', {
-        format: selectedFormat,
-        quality: selectedQuality,
-        formatId: selectedFormatId
+        format: finalFormat,
+        quality: finalQuality,
+        formatId: finalFormatId
       });
 
       if (selectedFormatId !== 'audio-mp3') {
@@ -259,13 +264,16 @@ export default function AdvancedDownloadForm() {
 
     setIsAnalyzing(true);
     try {
-      console.log('🎵 Starting download request:', { url, format: selectedFormat, quality: selectedQuality, selectedFormatId });
-      console.log('🎵 selectedFormat type:', typeof selectedFormat, 'value:', selectedFormat);
+      console.log('🎵 Starting download request:', { url, format: finalFormat, quality: finalQuality, formatId: finalFormatId });
+      console.log('🎵 format type:', typeof finalFormat, 'value:', finalFormat);
 
       const requestBody = {
         url,
-        format: selectedFormat,
-        quality: selectedQuality,
+        format: finalFormat,
+        quality: finalQuality,
+        formatId: finalFormatId,
+        fileSize: finalFileSize,
+        title: videoInfo?.title || 'Unknown Title',
         downloadLocation,
         // Advanced options
         audioCodec,
@@ -273,7 +281,8 @@ export default function AdvancedDownloadForm() {
         startTime,
         endTime,
         subtitles,
-        thumbnail,
+        thumbnailUrl: videoInfo?.thumbnail,
+        saveThumbnail,
         metadata,
         customFilename,
       };
@@ -295,9 +304,9 @@ export default function AdvancedDownloadForm() {
       const result = await res.json();
       console.log('Download started successfully:', result);
 
-      const formatMessage = selectedFormat === 'mp3'
-        ? `MP3 audio download started! Quality: ${selectedQuality}`
-        : `Download started! Format: ${selectedFormat}, Quality: ${selectedQuality}`;
+      const formatMessage = finalFormat === 'mp3'
+        ? `MP3 audio download started! Quality: ${finalQuality}`
+        : `Download started! Format: ${finalFormat}, Quality: ${finalQuality}`;
 
       toast({
         title: "Download started!",
@@ -350,7 +359,7 @@ export default function AdvancedDownloadForm() {
             startTime,
             endTime,
             subtitles,
-            thumbnail,
+            saveThumbnail,
             metadata,
             customFilename,
           }),
@@ -478,123 +487,201 @@ export default function AdvancedDownloadForm() {
   return (
     <div className="max-w-full mx-auto p-4 sm:p-8 space-y-10 animate-scale-up">
       {/* Main Download Interface */}
-      <div className="relative group">
-        {/* Animated Gradient Border */}
-        <div className="absolute -inset-0.5 bg-gradient-purple-blue rounded-3xl blur opacity-30 group-hover:opacity-50 transition-opacity duration-500 animate-pulse-glow"></div>
-
-        <Card className="relative glass-card-premium border-0 shadow-floating rounded-3xl bg-white/80 dark:bg-modern-surface/80 backdrop-blur-xl">
-          <CardHeader className="text-center pb-4">
-            <CardTitle className="text-5xl font-black text-gradient-purple-blue drop-shadow-lg animate-slide-down">
-              Video Downloader
-            </CardTitle>
-            <p className="text-gray-600 dark:text-gray-300 text-lg mt-2 animate-fade-in">Professional-grade downloading with advanced features</p>
-
-            {/* Platform Support Badges */}
-            <div className="flex flex-wrap justify-center gap-2 mt-6">
-              {["YouTube", "Instagram", "TikTok", "Twitter", "Facebook", "Hotstar", "+1000 more"].map((platform, idx) => (
-                <Badge
-                  key={platform}
-                  variant="secondary"
-                  className="glass-button hover-scale shadow-sm animate-fade-in"
-                  style={{ animationDelay: `${idx * 0.1}s` }}
-                >
-                  {platform}
-                </Badge>
-              ))}
-            </div>
-          </CardHeader>
-
-          <CardContent className="space-y-8">
-            {/* URL Input Section */}
-            <div className="space-y-10">
-              <div className="relative group max-w-5xl mx-auto w-full">
-                <div className="absolute inset-0 bg-gradient-purple-blue rounded-full blur-xl opacity-40 group-hover:opacity-60 transition-opacity duration-500 animate-pulse"></div>
-                <div className="relative flex flex-col sm:flex-row items-center bg-white dark:bg-modern-surface border-4 border-white dark:border-white/10 rounded-3xl sm:rounded-full shadow-2xl p-2 overflow-hidden transition-all duration-300 focus-within:ring-4 focus-within:ring-purple-500/30">
-                  <Input
-                    type="url"
-                    placeholder="🔗 Paste YouTube, Instagram, or TikTok URL here..."
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    className="flex-1 h-16 sm:h-20 text-lg sm:text-xl border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-6 sm:px-8 transition-all duration-300 text-gray-900 dark:text-white placeholder:text-gray-400 font-medium"
-                  />
+      <div className="relative w-full">
+        <div className="space-y-8">
+          <CardContent className="p-0 space-y-8">
+            {/* URL Input Section - VideoHarvester style */}
+            <div className="space-y-6">
+              <div className="relative max-w-5xl mx-auto w-full">
+                <div className="flex flex-col sm:flex-row items-stretch bg-white border-[3px] border-white rounded-xl shadow-xl overflow-hidden">
+                  <div className="relative flex-1 flex items-center bg-white border-8 border-white">
+                    <button
+                      onClick={() => setUrl("")}
+                      className="absolute left-3 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <Zap className="w-5 h-5 ml-4" />
+                    </button>
+                    <Input
+                      type="url"
+                      placeholder="Paste your video URL here..."
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      className="flex-1 h-14 text-lg border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-4 transition-all duration-300 text-gray-900 placeholder:text-gray-400 font-normal italic pl-12"
+                    />
+                    {url && (
+                      <button
+                        onClick={() => setUrl("")}
+                        className="p-1 mx-2 text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <AlertCircle className="w-5 h-5 rotate-45" />
+                      </button>
+                    )}
+                  </div>
                   <Button
                     onClick={handleSubmit}
                     disabled={isAnalyzing || !url.trim()}
-                    className="h-14 sm:h-16 px-10 bg-gradient-purple-blue hover:shadow-glow-purple text-white rounded-2xl sm:rounded-full font-bold text-lg sm:text-lg transition-all duration-300 hover-scale w-full sm:w-auto mt-2 sm:mt-0 shadow-lg"
+                    className="h-auto px-10 bg-[#00b44b] hover:bg-[#009a3f] text-white rounded-none font-bold text-xl transition-all duration-300 flex items-center gap-2 py-4 sm:py-0"
                   >
                     {isAnalyzing ? (
                       <Loader2 className="w-6 h-6 animate-spin" />
                     ) : (
-                      <span className="flex items-center">
-                        <Download className="w-6 h-6 mr-2" />
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full border-2 border-white flex items-center justify-center">
+                          <Download className="w-6 h-6" />
+                        </div>
                         Download
-                      </span>
+                      </div>
                     )}
                   </Button>
                 </div>
               </div>
 
-              {/* Premium Result Card (SaveFrom style) */}
+              {/* VideoHarvester Style Result Card */}
               {videoInfo && !infoError && (() => {
                 const info = videoInfo as VideoInfo;
                 const hasThumbnail = info.thumbnail && info.thumbnail.trim() !== '' && info.thumbnail !== 'NA' && !thumbnailError;
 
                 return (
-                  <div className="bg-white/90 dark:bg-modern-surface/90 rounded-3xl p-6 md:p-8 border border-white/40 dark:border-white/10 shadow-2xl backdrop-blur-xl animate-fade-in flex flex-col md:flex-row gap-8 items-start max-w-5xl mx-auto w-full">
-                    {/* Thumbnail */}
-                    <div className="w-full md:w-80 aspect-video rounded-2xl overflow-hidden shadow-lg bg-gray-200 dark:bg-gray-800 flex-shrink-0 relative group">
-                      {hasThumbnail ? (
-                        <img
-                          src={info.thumbnail}
-                          alt={info.title}
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                          onError={() => setThumbnailError(true)}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Video className="w-12 h-12 text-gray-400" />
+                  <div className="bg-white rounded-xl overflow-hidden shadow-xl animate-fade-in flex flex-col md:flex-row gap-0 max-w-5xl mx-auto w-full border border-gray-100 mt-8">
+                    {/* Left: Video Details */}
+                    <div className="w-full md:w-1/3 p-6 flex flex-col gap-4 border-r border-gray-100 bg-white">
+                      <div className="aspect-video rounded-lg overflow-hidden relative shadow-sm border border-gray-100">
+                        {hasThumbnail ? (
+                          <img
+                            src={info.thumbnail}
+                            alt={info.title}
+                            className="w-full h-full object-cover"
+                            onError={() => setThumbnailError(true)}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gray-50">
+                            <Video className="w-12 h-12 text-gray-200" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-3 text-left">
+                        <h3 className="text-lg font-bold text-gray-900 leading-snug line-clamp-3">
+                          {info.title || 'Unknown Title'}
+                        </h3>
+                        <div className="flex flex-col gap-1">
+                          <p className="text-sm text-gray-500 font-semibold">{info.platform || 'YouTube'}</p>
+                          <p className="text-lg font-black text-gray-800">Duration: {info.duration || '00:00'}</p>
                         </div>
-                      )}
-                      <div className="absolute bottom-2 right-2 bg-black/80 text-white px-3 py-1 rounded-lg text-sm font-semibold flex items-center backdrop-blur-md">
-                        <Clock className="w-4 h-4 mr-1.5" /> {info.duration || 'N/A'}
                       </div>
                     </div>
 
-                    {/* Info & Fast Download Controls */}
-                    <div className="flex-1 w-full flex flex-col h-full justify-between space-y-4 md:space-y-0">
-                      <div>
-                        <h3 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white line-clamp-2 leading-tight pr-8 relative">
-                          {info.title || 'Unknown Title'}
-                          <button onClick={() => copyToClipboard(info.title || '')} className="absolute top-0 right-0 p-2 text-gray-400 hover:text-blue-500 transition-colors"><Copy className="w-4 h-4" /></button>
-                        </h3>
-                        <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600 dark:text-gray-400 font-medium mt-4">
-                          <span className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 px-3 py-1 rounded-full border border-blue-200 dark:border-blue-800/50">{info.platform || 'Unknown'}</span>
-                          {info.views && <span className="bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full flex items-center border border-gray-200 dark:border-gray-700"><Play className="w-3 h-3 mr-1.5" /> {info.views} Views</span>}
+                    {/* Right: Download Table */}
+                    <div className="flex-1 bg-white">
+                      <div className="min-w-full divide-y divide-gray-100">
+                        {/* Audio Section Header */}
+                        <div className="p-4 bg-gray-50/80 font-bold text-[#00b44b] flex items-center gap-2">
+                          <Music className="w-5 h-5" /> Music
                         </div>
-                      </div>
 
-                      <div className="mt-6 flex flex-col sm:flex-row gap-4 items-center w-full">
-                        <Button
-                          onClick={handleDownload}
-                          disabled={isAnalyzing}
-                          className="w-full sm:w-auto h-14 sm:h-16 px-10 bg-gradient-teal-green hover:shadow-glow text-white rounded-2xl font-black text-lg sm:text-xl transition-all duration-300 hover-scale hover-lift shadow-xl"
-                        >
-                          <Download className="w-6 h-6 mr-2" />
-                          Download Now
-                        </Button>
-                        <div className="flex flex-col text-sm text-gray-600 dark:text-gray-400 w-full sm:w-auto">
-                          <div className="bg-gray-50 dark:bg-modern-surface-alt p-3 rounded-xl border border-gray-100 dark:border-white/5">
-                            <div className="flex justify-between gap-4 py-1 border-b border-gray-200 dark:border-gray-700">
-                              <span>Format:</span>
-                              <span className="text-gray-900 dark:text-white font-bold uppercase">{selectedFormat}</span>
+                        {/* Audio Mock Rows - in a real app these would be dynamic */}
+                        <div className="divide-y divide-gray-50">
+                          {(info.formats?.filter(f => f.format === 'MP3') || []).map((f) => (
+                            <div key={f.formatId} className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+                              <div className="flex items-center gap-4">
+                                <span className="bg-[#ffdd00] text-gray-900 px-2 py-0.5 rounded text-[10px] font-black">{f.format}</span>
+                                <span className="font-bold text-gray-700 text-sm italic">{f.resolution}</span>
+                              </div>
+                              <span className="text-gray-400 font-bold text-sm ml-auto mr-8">{f.fileSize || '---'}</span>
+                              <Button
+                                onClick={() => {
+                                  setSelectedFormat('mp3');
+                                  setSelectedFormatId(f.formatId);
+                                  setSelectedQuality(f.quality || 'best');
+                                  handleDownload('mp3', f.quality || 'best', f.formatId);
+                                }}
+                                className="bg-[#00b44b] hover:bg-[#009a3f] text-white font-bold h-10 px-6 gap-2 rounded-lg"
+                              >
+                                <Download className="w-4 h-4" /> Download
+                              </Button>
                             </div>
-                            <div className="flex justify-between gap-4 py-1">
-                              <span>Quality:</span>
-                              <span className="text-gray-900 dark:text-white font-bold">{selectedQuality}</span>
-                            </div>
-                          </div>
-                          <span className="text-xs text-blue-500 mt-2 text-center sm:text-left">(Check options below for more formats)</span>
+                          ))}
+                          {(!info.formats || info.formats.filter(f => f.format === 'MP3').length === 0) && (
+                            <div className="p-8 text-center text-gray-400 italic">No audio formats available</div>
+                          )}
                         </div>
+
+                        {/* Video Section Header */}
+                        <div className="p-4 bg-gray-50/80 font-bold text-[#00b44b] flex items-center gap-2 border-t border-gray-100">
+                          <Play className="w-5 h-5" /> Video
+                        </div>
+
+                        <div className="divide-y divide-gray-50">
+                          {(showAllFormats
+                            ? (info.formats?.filter(f => f.format !== 'MP3' && f.format !== 'IMAGE') || [])
+                            : (info.formats?.filter(f => f.format !== 'MP3' && f.format !== 'IMAGE').slice(0, 5) || [])
+                          ).map((f) => (
+                            <div key={f.formatId} className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+                              <div className="flex items-center gap-4">
+                                <span className="bg-[#00b44b] text-white px-2 py-0.5 rounded text-[10px] font-black uppercase">{f.format}</span>
+                                <span className="font-bold text-gray-700 text-sm italic">{f.resolution}</span>
+                              </div>
+                              <span className="text-gray-400 font-bold text-sm ml-auto mr-8">{f.fileSize || '---'}</span>
+                              <Button
+                                onClick={() => {
+                                  setSelectedFormat(f.format);
+                                  setSelectedFormatId(f.formatId);
+                                  setSelectedQuality(f.quality);
+                                  handleDownload(f.format, f.quality, f.formatId, f.fileSize);
+                                }}
+                                className="bg-[#00b44b] hover:bg-[#009a3f] text-white font-bold h-10 px-6 gap-2 rounded-lg"
+                              >
+                                <Download className="w-4 h-4" /> Download
+                              </Button>
+                            </div>
+                          ))}
+
+                          {(!info.formats || info.formats.filter(f => f.format !== 'MP3').length === 0) && (
+                            <div className="p-8 text-center text-gray-400 italic">No video formats available</div>
+                          )}
+                        </div>
+
+                        {/* Image Section Header */}
+                        <div className="p-4 bg-gray-50/80 font-bold text-[#00b44b] flex items-center gap-2 border-t border-gray-100">
+                          <Image className="w-5 h-5" /> Picture / Photo
+                        </div>
+
+                        <div className="divide-y divide-gray-50">
+                          {(info.formats?.filter(f => f.format === 'IMAGE') || []).map((f) => (
+                            <div key={f.formatId} className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+                              <div className="flex items-center gap-4">
+                                <span className="bg-[#ff3b3b] text-white px-2 py-0.5 rounded text-[10px] font-black uppercase">PHOTO</span>
+                                <span className="font-bold text-gray-700 text-sm italic">{f.resolution}</span>
+                              </div>
+                              <span className="text-gray-400 font-bold text-sm ml-auto mr-8">{f.fileSize || '---'}</span>
+                              <Button
+                                onClick={() => {
+                                  setSelectedFormat(f.format);
+                                  setSelectedFormatId(f.formatId);
+                                  setSelectedQuality(f.quality);
+                                  handleDownload(f.format, f.quality, f.formatId, f.fileSize);
+                                }}
+                                className="bg-[#00b44b] hover:bg-[#009a3f] text-white font-bold h-10 px-6 gap-2 rounded-lg"
+                              >
+                                <Download className="w-4 h-4" /> Download
+                              </Button>
+                            </div>
+                          ))}
+
+                          {(!info.formats || info.formats.filter(f => f.format === 'IMAGE').length === 0) && (
+                            <div className="p-8 text-center text-gray-400 italic">No image formats available</div>
+                          )}
+                        </div>
+
+                        {info.formats && info.formats.filter(f => f.format !== 'MP3').length > 5 && (
+                          <div className="p-4 text-center border-t border-gray-50">
+                            <button
+                              onClick={() => setShowAllFormats(!showAllFormats)}
+                              className="text-[#00b44b] font-bold text-sm underline underline-offset-4 hover:text-[#009a3f]"
+                            >
+                              {showAllFormats ? "Show Less" : "Show More"}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -945,7 +1032,7 @@ export default function AdvancedDownloadForm() {
                   <div className="flex flex-wrap gap-4">
                     {[
                       { key: 'subtitles', label: 'Download Subtitles', state: subtitles, setState: setSubtitles },
-                      { key: 'thumbnail', label: 'Save Thumbnail', state: thumbnail, setState: setThumbnail },
+                      { key: 'thumbnail', label: 'Save Thumbnail', state: saveThumbnail, setState: setSaveThumbnail },
                       { key: 'metadata', label: 'Preserve Metadata', state: metadata, setState: setMetadata }
                     ].map((option) => (
                       <label key={option.key} className="flex items-center cursor-pointer">
@@ -1000,7 +1087,7 @@ export default function AdvancedDownloadForm() {
               <FeatureHighlights />
             </div>
           </CardContent>
-        </Card>
+        </div>
       </div>
 
       {/* Bottom video card removed in favor of top card */}
@@ -1012,6 +1099,6 @@ export default function AdvancedDownloadForm() {
           </Card>
         )
       }
-    </div >
+    </div>
   );
 }

@@ -7,7 +7,8 @@ import { insertDownloadItemSchema, insertDownloadSettingsSchema, type WebSocketM
 import { z } from "zod";
 import path from "path";
 import fs from "fs/promises";
-import { existsSync, createReadStream, statSync, readdirSync } from "fs";
+import { existsSync, createReadStream, statSync, readdirSync, createWriteStream } from "fs";
+import axios from "axios";
 import type { Request, Response } from "express";
 import { spawnSync } from 'child_process';
 import os from "os";
@@ -39,6 +40,15 @@ interface VideoInfo {
   uploader?: string;
   availableFormats?: string[];
   availableQualities?: string[];
+  formats?: Array<{
+    formatId: string;
+    resolution: string;
+    quality: string;
+    fileSize: string;
+    format: string;
+    codec: string;
+    fps?: string;
+  }>;
 }
 
 interface FormatInfo {
@@ -65,7 +75,7 @@ let completedDownloadScanner: NodeJS.Timeout;
 // Constants
 const MAX_CONCURRENT_DOWNLOADS = 3;
 const DOWNLOAD_TIMEOUT = 900000; // 15 minutes
-const INFO_EXTRACTION_TIMEOUT = 15000; // Reduced to 15 seconds for faster response
+const INFO_EXTRACTION_TIMEOUT = 45000; // Increased to 45 seconds to handle slow bypass/slow YouTube response
 const MAX_RETRY_ATTEMPTS = 3; // Increased retries for bypassing blocks
 const INITIAL_DOWNLOAD_DELAY = 1000;
 const MIN_FILE_SIZE = 512 * 1024;
@@ -103,6 +113,7 @@ function detectPlatform(url: string): string {
   if (urlLower.includes('vimeo.com')) return 'Vimeo';
   if (urlLower.includes('twitch.tv')) return 'Twitch';
   if (urlLower.includes('hotstar.com')) return 'Hotstar';
+  if (urlLower.includes('pinterest.com') || urlLower.includes('pin.it')) return 'Pinterest';
   return 'Unknown';
 }
 
@@ -130,6 +141,11 @@ function extractTitleFromUrl(url: string): string | null {
       const tweetId = urlObj.pathname.split('/').pop();
       if (tweetId) {
         return `Twitter_Tweet_${tweetId}`;
+      }
+    } else if (url.includes('pinterest.com') || url.includes('pin.it')) {
+      const pinId = urlObj.pathname.split('/').filter(Boolean).pop();
+      if (pinId) {
+        return `Pinterest_Pin_${pinId}`;
       }
     }
 
@@ -198,58 +214,91 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
     item.format.toLowerCase().includes('audio')
   );
 
-  // For MP3, force .mp3 extension with exact title; for others use .mp4 extension for better naming
+  // Handle CUSTOM FILENAME if provided
+  let finalTitle = sanitizedTitle;
+  if (item.customFilename && item.customFilename.trim().length > 0) {
+    finalTitle = sanitizeFilename(item.customFilename.trim());
+    console.log(`📝 Using custom filename: ${finalTitle}`);
+  }
+
+  // Determine output template based on custom title and format
   const outputTemplate = isMP3Format
-    ? path.join(outputPath, `${sanitizedTitle}.mp3`)
-    : path.join(outputPath, `${sanitizedTitle}.mp4`);
+    ? path.join(outputPath, `${finalTitle}.mp3`)
+    : path.join(outputPath, `${finalTitle}.%(ext)s`);
 
-  console.log(`📝 Output template: ${outputTemplate}`);
-  console.log(`📝 Sanitized title: ${sanitizedTitle}`);
-  console.log(`📝 Original title: ${videoTitle}`);
-
-  console.log(`🛠️ Building ANTI-BLOCK args for ${item.id}, quality: ${item.quality}, format: ${item.format}, title: ${videoTitle}`);
+  console.log(`📝 Full output path: ${outputTemplate}`);
 
   const args = [
     '--output', outputTemplate,
     '--progress',
     '--newline',
     '--no-playlist',
-    '--socket-timeout', '200',
-    '--retries', '20',
-    '--fragment-retries', '20',
-    '--retry-sleep', '5',
+    '--socket-timeout', '300',
+    '--retries', '30',
+    '--fragment-retries', '30',
     '--no-warnings',
-    '--concurrent-fragments', '1', // Reduced to avoid detection
-    '--buffer-size', '8192',
-    '--no-check-certificate',
-    '--sleep-interval', '1', // Add delays between requests
-    '--max-sleep-interval', '5'
+    '--no-check-certificate'
   ];
+
+  // Handle TRIMMING (Start/End times)
+  if ((item.startTime && item.startTime.trim()) || (item.endTime && item.endTime.trim())) {
+    const start = item.startTime?.trim() || '0';
+    const end = item.endTime?.trim() || 'inf';
+    args.push('--download-sections', `*${start}-${end}`);
+    console.log(`✂️ Trimming: ${start} to ${end}`);
+  }
+
+  // Handle SUBTITLES
+  if (item.subtitles) {
+    args.push('--write-subs', '--all-subs', '--embed-subs');
+    console.log(`📜 Enabling subtitles`);
+  }
+
+  // Handle THUMBNAIL
+  if (item.saveThumbnail) {
+    args.push('--write-thumbnail', '--embed-thumbnail');
+    console.log(`🖼️ Enabling thumbnail`);
+  }
+
+  // Handle METADATA
+  if (item.metadata !== false) {
+    args.push('--embed-metadata', '--add-metadata');
+    console.log(`🏷️ Enabling metadata`);
+  }
 
   const isYouTube = item.url.toLowerCase().includes('youtube.com') || item.url.toLowerCase().includes('youtu.be');
 
-  // Handle MP3 audio format specifically
-  console.log(`🔍 DEBUG: Checking format - item.format: "${item.format}", type: ${typeof item.format}`);
-  console.log(`🔍 DEBUG: item.format.toLowerCase(): "${item.format?.toLowerCase()}", comparison result: ${item.format?.toLowerCase() === 'mp3'}`);
-  console.log(`🔍 DEBUG: item.format.trim(): "${item.format?.trim()}", trimmed comparison: ${item.format?.trim().toLowerCase() === 'mp3'}`);
-  console.log(`🔍 DEBUG: Full item object:`, JSON.stringify(item, null, 2));
+  // Handle CODEC SETTINGS if explicitly set
+  let ffmpegArgs = [];
+  if (item.videoCodec && item.videoCodec !== 'h264' && !isMP3Format) {
+    // Note: This is an advanced feature that might require re-encoding if not natively supported by the source
+    console.log(`🎬 Video codec override: ${item.videoCodec}`);
+    // If we want a specific codec, we might need to tell ffmpeg to use it
+    // For simplicity, we'll copy if default, otherwise re-encode via postprocessor
+    if (item.videoCodec === 'h265') ffmpegArgs.push('-c:v libx265');
+    else if (item.videoCodec === 'vp9') ffmpegArgs.push('-c:v libvpx-vp9');
+    else if (item.videoCodec === 'av1') ffmpegArgs.push('-c:v libaom-av1');
+  }
+
+  if (item.audioCodec && item.audioCodec !== 'mp3' && isMP3Format) {
+    console.log(`🎵 Audio codec override: ${item.audioCodec}`);
+    if (item.audioCodec === 'aac') ffmpegArgs.push('-c:a aac');
+    else if (item.audioCodec === 'flac') ffmpegArgs.push('-c:a flac');
+    else if (item.audioCodec === 'opus') ffmpegArgs.push('-c:a libopus');
+  }
+
+  if (ffmpegArgs.length > 0) {
+    args.push('--postprocessor-args', `ffmpeg:${ffmpegArgs.join(' ')}`);
+  }
 
   if (isMP3Format) {
-    console.log(`🎵 MP3 Audio download detected - Configuring for audio extraction`);
-
-    // For MP3, we want audio-only with quality based on selection
+    console.log(`🎵 Configuring for audio extraction`);
     args.push(
       '--extract-audio',
-      '--audio-format', 'mp3',
-      '--audio-quality', '0', // Best quality
-      '--format', 'bestaudio[ext=m4a]/bestaudio/best', // Force audio format selection
-      '--postprocessor-args', `ffmpeg:-b:a ${getAudioBitrate(item.quality)}`, // Use selected bitrate
-      '--embed-metadata',
-      '--add-metadata',
-      '--write-thumbnail', // Add thumbnail for better metadata
-      // '--convert-thumbnails', 'jpg',
-      '--no-video', // CRITICAL: Ensure no video is downloaded
-      '--output', outputTemplate // Force exact output filename for MP3
+      '--audio-format', item.audioCodec || 'mp3',
+      '--audio-quality', '0',
+      '--format', 'bestaudio[ext=m4a]/bestaudio/best',
+      '--no-video'
     );
 
     // Add YouTube bypass measures for MP3 downloads too
@@ -339,18 +388,16 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
     } else {
       console.log(`⚠️ No YouTube cookies found - download may be restricted`);
 
-      // FALLBACK: Try to extract cookies from browser
-      const possibleCookiePaths = [
-        path.join(os.homedir(), 'AppData', 'Local', 'Google', 'Chrome', 'User Data', 'Default', 'Cookies'),
-        path.join(os.homedir(), '.config', 'google-chrome', 'Default', 'Cookies'),
-        path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'Default', 'Cookies')
-      ];
-
-      for (const cookieFile of possibleCookiePaths) {
-        if (existsSync(cookieFile)) {
-          args.push('--cookies-from-browser', 'chrome');
-          console.log(`🍪 Using Chrome cookies from: ${cookieFile}`);
-          break;
+      // FALLBACK: Try to extract cookies from various browsers
+      const browsers = ['chrome', 'edge', 'firefox', 'opera', 'brave', 'vivaldi'];
+      for (const browser of browsers) {
+        try {
+          // Instead of manually checking paths, we'll try to use yt-dlp's built-in browser detection
+          args.push('--cookies-from-browser', browser);
+          console.log(`🍪 Attempting to use ${browser} cookies...`);
+          break; // Stop after first browser that might work
+        } catch (e) {
+          continue;
         }
       }
     }
@@ -361,6 +408,11 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
     if (item.quality === 'best') {
       args.push('--format', `bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best`);
       console.log(`🎯 Best quality requested`);
+    } else if (item.formatId && item.formatId !== 'best') {
+      // Use specific formatId if we have one (which we do when clicking a specific row)
+      // BUT still add +bestaudio to ensure we have sound if the format_id is video-only
+      args.push('--format', `${item.formatId}+bestaudio[ext=m4a]/bestvideo[height<=${requestedHeight}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${requestedHeight}][ext=mp4]/best`);
+      console.log(`🎯 Specific format requested: ${item.formatId} (max height ${requestedHeight}p)`);
     } else {
       args.push('--format', `bestvideo[height<=${requestedHeight}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${requestedHeight}][ext=mp4]/best[ext=mp4]/best`);
       console.log(`🎯 Specific quality requested: up to ${requestedHeight}p`);
@@ -378,10 +430,12 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
     );
 
   } else {
-    // Non-YouTube format selection - prefer single file formats
+    // Non-YouTube format selection
     const requestedHeight = getHeightFromQuality(item.quality);
     if (item.quality === 'best') {
       args.push('--format', `best[ext=mp4]/best`);
+    } else if (item.formatId && item.formatId !== 'best') {
+      args.push('--format', `${item.formatId}+bestaudio[ext=m4a]/best[height<=${requestedHeight}][ext=mp4]/best`);
     } else {
       args.push('--format', `bestvideo[height<=${requestedHeight}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${requestedHeight}][ext=mp4]/best[ext=mp4]/best`);
     }
@@ -411,13 +465,13 @@ async function extractYouTubeCookies(): Promise<void> {
     const cookieOutputPath = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
 
     // Try to extract from different browsers
-    const browsers = ['chrome', 'firefox', 'edge', 'safari'];
+    const browsers = ['chrome', 'edge', 'firefox', 'opera', 'brave', 'vivaldi', 'safari'];
 
     for (const browser of browsers) {
       try {
+        console.log(`🍪 Trying browser: ${browser}`);
         const result = spawnSync('yt-dlp', [
           '--cookies-from-browser', browser,
-          '--write-pages',
           '--skip-download',
           '--cookies', cookieOutputPath,
           'https://www.youtube.com/watch?v=dQw4w9WgXcQ' // Test video
@@ -453,33 +507,22 @@ function getAudioBitrate(quality: string | null): string {
 }
 
 // Helper function to convert quality to height
-function getHeightFromQuality(quality: string): number {
-  switch (quality) {
-    case '4320p':
-    case '8K':
-      return 4320;
-    case '2160p':
-    case '4K':
-      return 2160;
-    case '1440p':
-    case '2K':
-      return 1440;
-    case '1080p':
-    case 'Full HD':
-      return 1080;
-    case '720p':
-    case 'HD':
-      return 720;
-    case '480p':
-    case 'SD':
-      return 480;
-    case '360p':
-      return 360;
-    case '240p':
-      return 240;
-    default:
-      return 1080; // Default to 1080p
-  }
+function getHeightFromQuality(quality: string | null | undefined): number {
+  if (!quality) return 1080;
+
+  const q = quality.toLowerCase().trim();
+
+  if (q.includes('4320') || q.includes('8k')) return 4320;
+  if (q.includes('2160') || q.includes('4k')) return 2160;
+  if (q.includes('1440') || q.includes('2k')) return 1440;
+  if (q.includes('1080') || q.includes('full hd')) return 1080;
+  if (q.includes('720') || q.includes('hd')) return 720;
+  if (q.includes('480') || q.includes('sd')) return 480;
+  if (q.includes('360')) return 360;
+  if (q.includes('240')) return 240;
+  if (q.includes('144')) return 144;
+
+  return 1080; // Default to 1080p
 }
 
 // Fix 3: Format selection helper for bypass - IMPROVED for proper video/audio matching and 8K support
@@ -612,18 +655,26 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
     const args = [
       '--dump-json',
       '--no-playlist',
-      '--socket-timeout', '10', // Reduced timeout
+      '--socket-timeout', '30', // Increased timeout
       '--no-check-certificate',
       '--no-warnings',
       '--skip-download'
     ];
 
     if (isYouTube) {
-      // Use working arguments for YouTube
+      // EXTREME BYPASS arguments for YouTube - REMOVED web/mweb clients that trigger bot checks
       args.push(
-        '--extractor-args', 'youtube:player_client=android_creator,tv_embedded',
-        '--user-agent', 'Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36'
+        '--extractor-args', 'youtube:player_client=ios,android_creator,tv_embedded',
+        '--extractor-args', 'youtube:player_skip=configs',
+        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
       );
+
+      // Use cookies if available
+      const cookieFile = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
+      if (existsSync(cookieFile)) {
+        args.push('--cookies', cookieFile);
+        console.log(`🍪 Using cookies for info extraction: ${cookieFile}`);
+      }
     }
 
     args.push(url);
@@ -643,14 +694,121 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
       stderr += data.toString();
     });
 
-    ytdlp.on('close', (code) => {
+    ytdlp.on('close', async (code) => {
       clearTimeout(timeout);
 
       if (code === 0 && stdout.trim()) {
         try {
-          const jsonData = JSON.parse(stdout.trim());
+          // Robust JSON extraction - find the first { and last }
+          let jsonStr = stdout.trim();
+          const firstBrace = jsonStr.indexOf('{');
+          const lastBrace = jsonStr.lastIndexOf('}');
+
+          if (firstBrace !== -1 && lastBrace !== -1) {
+            jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
+          }
+
+          const jsonData = JSON.parse(jsonStr);
 
           // Extract all available information from JSON
+          const availableQualities = new Set<string>();
+          availableQualities.add('best');
+
+          const videoFormatsMap = new Map<string, any>();
+          const audioFormats: any[] = [];
+
+          if (jsonData.formats) {
+            jsonData.formats.forEach((f: any) => {
+              if (f.height) {
+                const res = `${f.height}P`;
+                const h = f.height;
+
+                if (h >= 4320) availableQualities.add('4320p');
+                else if (h >= 2160) availableQualities.add('2160p');
+                else if (h >= 1440) availableQualities.add('1440p');
+                else if (h >= 1080) availableQualities.add('1080p');
+                else if (h >= 720) availableQualities.add('720p');
+                else if (h >= 480) availableQualities.add('480p');
+                else if (h >= 360) availableQualities.add('360p');
+                else if (h >= 240) availableQualities.add('240p');
+                else if (h >= 144) availableQualities.add('144p');
+
+                const existing = videoFormatsMap.get(res);
+                const isBetter = !existing ||
+                  (f.ext === 'mp4' && existing.format !== 'MP4') ||
+                  (f.tbr > (existing.tbr || 0));
+
+                if (isBetter) {
+                  videoFormatsMap.set(res, {
+                    formatId: f.format_id,
+                    resolution: res,
+                    quality: f.quality_label || res,
+                    fileSize: formatFileSize(f.filesize || f.filesize_approx),
+                    format: f.ext ? f.ext.toUpperCase() : 'MP4',
+                    codec: f.vcodec || 'unknown',
+                    fps: f.fps ? String(f.fps) : undefined,
+                    tbr: f.tbr
+                  });
+                }
+              }
+
+              if (f.acodec !== 'none' && f.vcodec === 'none') {
+                const bitrate = f.abr || (f.tbr ? f.tbr - (f.vbr || 0) : 0);
+                if (bitrate > 0) {
+                  audioFormats.push({
+                    formatId: f.format_id,
+                    bitrate: Math.round(bitrate),
+                    fileSize: formatFileSize(f.filesize || f.filesize_approx),
+                    ext: f.ext
+                  });
+                }
+              }
+            });
+          }
+
+          const sortedVideoFormats = Array.from(videoFormatsMap.values()).sort((a, b) => {
+            const hA = parseInt(a.resolution) || 0;
+            const hB = parseInt(b.resolution) || 0;
+            return hB - hA;
+          });
+
+          const commonAudio = [];
+          const bestA = audioFormats.sort((a, b) => b.bitrate - a.bitrate)[0];
+          if (bestA) {
+            commonAudio.push({
+              formatId: bestA.formatId,
+              resolution: '320KBPS',
+              quality: 'high',
+              fileSize: bestA.fileSize,
+              format: 'MP3',
+              codec: 'libmp3lame'
+            });
+          }
+
+          const medA = audioFormats.find(a => a.bitrate <= 192 && a.bitrate >= 120);
+          if (medA) {
+            commonAudio.push({
+              formatId: medA.formatId,
+              resolution: '128KBPS',
+              quality: 'medium',
+              fileSize: medA.fileSize,
+              format: 'MP3',
+              codec: 'libmp3lame'
+            });
+          }
+
+          const lowA = audioFormats.find(a => a.bitrate <= 64);
+          if (lowA) {
+            commonAudio.push({
+              formatId: lowA.formatId,
+              resolution: 'LOW',
+              quality: 'low',
+              fileSize: lowA.fileSize,
+              format: 'MP3',
+              codec: 'libmp3lame'
+            });
+          }
+
           const info: VideoInfo = {
             title: jsonData.title || jsonData.fulltitle || 'Unknown Title',
             platform: detectPlatform(url),
@@ -658,17 +816,49 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
             views: jsonData.view_count ? `${jsonData.view_count.toLocaleString()}` : (jsonData.view_count === 0 ? '0' : 'Unknown'),
             uploader: jsonData.uploader || jsonData.channel || jsonData.creator || 'Unknown',
             thumbnail: jsonData.thumbnail || jsonData.thumbnails?.[0]?.url || '',
-            availableFormats: [],
-            availableQualities: [],
-            fileSize: formatFileSize(jsonData.filesize || jsonData.filesize_approx)
+            availableFormats: Array.from(new Set(jsonData.formats?.map((f: any) => f.ext) || [])),
+            availableQualities: Array.from(availableQualities).sort((a, b) => {
+              const order = ['best', '4320p', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p'];
+              return order.indexOf(a) - order.indexOf(b);
+            }),
+            fileSize: formatFileSize(jsonData.filesize || jsonData.filesize_approx),
+            formats: [...commonAudio, ...sortedVideoFormats]
           };
 
           resolve(info);
         } catch (parseError) {
           // Fallback to simple extraction if JSON parse fails
           console.log('⚠️ JSON parse failed, using fallback');
+          
+          // Special handling for Pinterest images
+          if (url.includes('pinterest.com') || url.includes('pin.it')) {
+            getPinterestImageInfo(url)
+              .then(pinterestInfo => {
+                if (pinterestInfo) {
+                  resolve(pinterestInfo);
+                }
+              })
+              .catch(e => {
+                console.log('⚠️ Pinterest image extraction failed:', e);
+                // Continue to default info if Pinterest specific fails
+                const info: VideoInfo = {
+                  title: extractTitleFromUrl(url) || 'Unknown Title',
+                  platform: detectPlatform(url),
+                  duration: 'Unknown',
+                  views: 'Unknown',
+                  uploader: 'Unknown',
+                  thumbnail: '',
+                  availableFormats: [],
+                  availableQualities: [],
+                  fileSize: 'Unknown'
+                };
+                resolve(info);
+              });
+            return;
+          }
+
           const info: VideoInfo = {
-            title: 'Unknown Title',
+            title: extractTitleFromUrl(url) || 'Unknown Title',
             platform: detectPlatform(url),
             duration: 'Unknown',
             views: 'Unknown',
@@ -681,15 +871,148 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
           resolve(info);
         }
       } else {
+        // Special handling for Pinterest images when yt-dlp fails (usual for images)
+        if ((url.includes('pinterest.com') || url.includes('pin.it')) && stderr.includes('No video formats found')) {
+            getPinterestImageInfo(url)
+              .then(info => resolve(info))
+              .catch(err => reject(new Error(`Pinterest extraction failed: ${err.message}`)));
+            return;
+        }
         reject(new Error(`yt-dlp failed with code ${code}: ${stderr.substring(0, 200)}`));
       }
     });
 
     ytdlp.on('error', (error) => {
+      // Special handling for Pinterest images
+      if (url.includes('pinterest.com') || url.includes('pin.it')) {
+          getPinterestImageInfo(url)
+            .then(info => resolve(info))
+            .catch(err => reject(new Error(`Pinterest extraction failed: ${err.message}`)));
+          return;
+      }
       clearTimeout(timeout);
       reject(error);
     });
   });
+}
+
+// Helper to extract Pinterest Image Info
+async function getPinterestImageInfo(url: string): Promise<VideoInfo> {
+    console.log(`📸 Attempting to extract Pinterest image info for: ${url}`);
+    try {
+        const response = await axios.get(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8'
+            },
+            timeout: 15000
+        });
+        
+        const html = response.data;
+        
+        // Extract title
+        let title = 'Pinterest Image';
+        const titleMatch = html.match(/<title>([^<]+)<\/title>/);
+        if (titleMatch) title = titleMatch[1].split('|')[0].trim();
+        
+        // Extract image URL - several methods to find it
+        let imageUrl = '';
+        
+        // Method 1: og:image meta tag (flexible with attribute order)
+        const ogImageMatch = html.match(/<(?:meta|link)[^>]+(?:property|name|rel)=["']og:image["'][^>]+content=["']([^"']+)["']/i) ||
+                           html.match(/<(?:meta|link)[^>]+content=["']([^"']+)["'][^>]+(?:property|name|rel)=["']og:image["']/i);
+        if (ogImageMatch) imageUrl = ogImageMatch[1];
+        
+        // Method 2: twitter:image meta tag
+        if (!imageUrl) {
+            const twitterImageMatch = html.match(/<(?:meta|link)[^>]+(?:property|name|rel)=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
+            if (twitterImageMatch) imageUrl = twitterImageMatch[1];
+        }
+        
+        // Method 3: rel="image_src" link tag
+        if (!imageUrl) {
+            const imageSrcMatch = html.match(/<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["']/i);
+            if (imageSrcMatch) imageUrl = imageSrcMatch[1];
+        }
+        
+        // Method 4: property="og:image:secure_url" meta tag
+        if (!imageUrl) {
+            const ogSecureImageMatch = html.match(/property=["']og:image:secure_url["']\s+content=["']([^"']+)["']/i);
+            if (ogSecureImageMatch) imageUrl = ogSecureImageMatch[1];
+        }
+
+        if (!imageUrl) {
+            // Method 5: Look in application/ld+json
+            const ldJsonMatch = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]+?)<\/script>/i);
+            if (ldJsonMatch) {
+                try {
+                    const ldJson = JSON.parse(ldJsonMatch[1].trim());
+                    if (ldJson.image) {
+                        imageUrl = typeof ldJson.image === 'string' ? ldJson.image : (ldJson.image.url || ldJson.image[0]);
+                    } else if (ldJson[0] && ldJson[0].image) {
+                        imageUrl = typeof ldJson[0].image === 'string' ? ldJson[0].image : (ldJson[0].image.url || ldJson[0].image[0]);
+                    }
+                } catch (e) {
+                    console.log('⚠️ Failed to parse Pinterest LD+JSON');
+                }
+            }
+        }
+
+        if (!imageUrl) {
+            // Method 6: Look in internal __PWS_DATA__ script
+            const pwsDataMatch = html.match(/<script[^>]+id=["']__PWS_DATA__["'][^>]*>([\s\S]+?)<\/script>/i);
+            if (pwsDataMatch) {
+                try {
+                    const pwsData = JSON.parse(pwsDataMatch[1].trim());
+                    // Find it deep in the structure if it's there
+                    // This is complex, so we'll just search for common patterns in the string first
+                    const urlMatch = pwsDataMatch[1].match(/"orig":\s*\{"url":\s*"([^"]+)"\}/);
+                    if (urlMatch) imageUrl = urlMatch[1];
+                } catch (e) {
+                    console.log('⚠️ Failed to parse Pinterest __PWS_DATA__');
+                }
+            }
+        }
+
+        if (!imageUrl) {
+            // Method 7: fallback regex for any large image URL in PIN_DATA or scripts
+            const fallbackMatch = html.match(/"v7":\s*"([^"]+)"/) || html.match(/"orig":\s*"([^"]+)"/);
+            if (fallbackMatch) imageUrl = fallbackMatch[1];
+        }
+
+        if (!imageUrl) throw new Error('Could not find image URL on the Pinterest page');
+
+        // If it's a thumbnail/resized version, try to get the original high-resolution version
+        // Pinterest URL patterns: /236x/, /474x/, /564x/, /736x/
+        imageUrl = imageUrl.replace(/\/\d+x\//, '/originals/');
+        
+        // Ensure URL is decoded
+        imageUrl = imageUrl.replace(/\\u002F/g, '/');
+        if (imageUrl.includes('&amp;')) imageUrl = imageUrl.replace(/&amp;/g, '&');
+
+        return {
+            title: title || extractTitleFromUrl(url) || 'Pinterest Image',
+            platform: 'Pinterest',
+            duration: 'IMAGE',
+            thumbnail: imageUrl,
+            uploader: 'Pinterest User',
+            availableFormats: ['JPG', 'PNG'],
+            availableQualities: ['Original'],
+            formats: [
+                {
+                    formatId: 'pinterest-image-original',
+                    resolution: 'Original Quality',
+                    quality: 'Original',
+                    fileSize: 'Unknown',
+                    format: 'IMAGE',
+                    codec: 'jpg'
+                }
+            ]
+        };
+    } catch (error: any) {
+        console.error('❌ Pinterest extraction error:', error.message);
+        throw error;
+    }
 }
 
 // NEW FUNCTION: Detect actual available qualities from video
@@ -723,8 +1046,8 @@ async function detectActualVideoQualities(url: string): Promise<string[]> {
       '--socket-timeout', '60', // Increased timeout
       '--no-check-certificate',
       '--no-warnings',
-      '--extractor-args', 'youtube:player_client=android_creator,tv_embedded,web,web_embedded,web_mobile,web_embedded_mobile',
-      '--extractor-args', 'youtube:player_skip=webpage,configs',
+      '--extractor-args', 'youtube:player_client=ios,android_creator,tv_embedded',
+      '--extractor-args', 'youtube:player_skip=configs',
       '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
       '--add-header', 'Accept-Language:en-US,en;q=0.9',
@@ -1027,6 +1350,13 @@ async function downloadVideo(itemId: number): Promise<void> {
       await extractYouTubeCookies();
     }
 
+    // Handle IMAGE formats separately
+    if (item.format === 'IMAGE') {
+      console.log(`📸 Image download detected for ${itemId}, using specialized downloader`);
+      await downloadImage(itemId);
+      return;
+    }
+
     console.log(`🚀 Starting ANTI-BLOCK download ${itemId}`);
     console.log(`🎯 DOWNLOAD DETAILS:`, {
       url: item.url,
@@ -1043,6 +1373,14 @@ async function downloadVideo(itemId: number): Promise<void> {
     const args = await buildDownloadArgs(item, downloadPath);
 
     console.log(`🎯 Starting download with BYPASS measures`);
+    
+    // Handle image downloads separately
+    if (item.format && (item.format.trim().toUpperCase() === 'IMAGE' || item.format.toLowerCase() === 'image')) {
+      console.log(`🖼️ Image download detected for ${itemId}`);
+      await downloadImage(itemId);
+      return;
+    }
+
     console.log(`🔍 DEBUG: Final download args:`, args.join(' '));
 
     // Additional validation for MP3 downloads
@@ -1771,19 +2109,98 @@ async function downloadVideoWithFinalBypass(itemId: number): Promise<void> {
         processDownloadQueue();
       }
     });
-
-  } catch (error) {
+  } catch (error: any) {
     console.error(`❌ Final bypass error for ${itemId}:`, error);
-
     await storage.updateDownloadItem(itemId, {
       status: "failed",
       errorMessage: "Final bypass failed due to system error. Please try again."
     });
-
     activeDownloads.delete(itemId);
     processDownloadQueue();
   }
 }
+
+// Function to download image directly
+async function downloadImage(itemId: number): Promise<void> {
+  try {
+    const item = await storage.getDownloadItem(itemId);
+    if (!item) return;
+
+    const settings = await storage.getSettings();
+    const downloadPath = await createDownloadDirectory(settings.downloadPath || "Downloads/Videos");
+    
+    let imageUrl = '';
+
+    // If it's Pinterest, we can extract the high-res URL
+    if (item.platform === 'Pinterest' || item.url.includes('pinterest.com') || item.url.includes('pin.it')) {
+      const info = await getPinterestImageInfo(item.url);
+      imageUrl = info.thumbnail!; // The high-res original
+    } else if (item.thumbnailUrl) {
+      imageUrl = item.thumbnailUrl;
+    }
+
+    if (!imageUrl) throw new Error('Could not find image URL');
+
+    console.log(`📸 Downloading image from: ${imageUrl}`);
+    
+    const fileName = `${sanitizeFilename(item.title || 'Pinterest_Image')}.jpg`;
+    const filePath = path.join(downloadPath, fileName);
+    
+    const response = await axios({
+      method: 'get',
+      url: imageUrl,
+      responseType: 'stream',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'Referer': 'https://www.pinterest.com/'
+      }
+    });
+
+    const writer = createWriteStream(filePath);
+    response.data.pipe(writer);
+
+    await new Promise((resolve, reject) => {
+      writer.on('finish', () => resolve(undefined));
+      writer.on('error', (err) => reject(err));
+    });
+
+    const stats = await fs.stat(filePath);
+    const fileSize = `${(stats.size / (1024 * 1024)).toFixed(2)} MB`;
+
+    await storage.updateDownloadItem(itemId, {
+      status: "completed",
+      progress: 100,
+      filePath,
+      fileSize
+    });
+
+    broadcastToClients({
+      type: "download_complete",
+      id: itemId,
+      filePath,
+      fileSize
+    });
+
+    console.log(`✅ Image download ${itemId} completed!`);
+    activeDownloads.delete(itemId);
+    processDownloadQueue();
+
+  } catch (error: any) {
+    console.error('❌ Image download failed:', error);
+    await storage.updateDownloadItem(itemId, {
+      status: "failed",
+      errorMessage: `Image download failed: ${error.message}`
+    });
+    broadcastToClients({
+      type: "download_error",
+      id: itemId,
+      error: error.message
+    });
+    activeDownloads.delete(itemId);
+    processDownloadQueue();
+  }
+}
+
 
 // Utility functions (keeping existing ones and adding new ones)
 async function createDownloadDirectory(downloadPath: string): Promise<string> {
@@ -2279,26 +2696,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`📋 Getting video info (FAST MODE) for: ${url}`);
 
       // Extract video info first (fast)
-      let info: VideoInfo;
-      try {
-        info = await extractVideoInfo(url);
-      } catch (error: any) {
-        console.log(`⚠️ Video info extraction failed: ${error.message}`);
-        // Fallback info
-        info = {
-          title: extractTitleFromUrl(url) || 'Unknown Title',
-          platform: detectPlatform(url),
-          duration: 'Unknown',
-          views: 'Unknown',
-          uploader: 'Unknown',
-          thumbnail: '',
-          fileSize: 'Unknown'
-        };
+      const info = await extractVideoInfo(url);
+
+      if (!info) {
+        return res.status(404).json({ message: "Video information could not be retrieved" });
       }
 
       // Use the actual qualities parsed from json dump
-      let availableQualities = info.availableQualities && info.availableQualities.length > 1 
-        ? info.availableQualities 
+      let availableQualities = info.availableQualities && info.availableQualities.length > 1
+        ? info.availableQualities
         : (isYouTube ?
           ['best', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p'] :
           ['best', '1080p', '720p', '480p', '360p', '240p', '144p']);
@@ -2319,7 +2725,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         supports1080p: availableQualities.includes('1080p') || availableQualities.includes('Full HD'),
         supports720p: availableQualities.includes('720p') || availableQualities.includes('HD'),
         bypassApplied: isYouTube,
-        qualityDetectionApplied: true 
+        qualityDetectionApplied: true
       };
 
       console.log(`✅ Video info extracted quickly:`, {

@@ -1,40 +1,49 @@
-# Use Node.js 18 Alpine for smaller image size
-FROM node:18-alpine
+# Stage 1: Build Stage
+FROM node:18-alpine AS builder
 
-# Set working directory
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-COPY pyproject.toml ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install ALL dependencies (including devDependencies for build tools)
+RUN npm install
 
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application (Vite + Esbuild)
 RUN npm run build
 
-# Install Python and yt-dlp for video downloading
-RUN apk add --no-cache python3 py3-pip ffmpeg
+# Stage 2: Runtime Stage
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install production system dependencies
+RUN apk add --no-cache python3 py3-pip ffmpeg curl
+
+# Install yt-dlp via pip (more reliable for Linux)
 RUN pip3 install yt-dlp
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nextjs -u 1001
+# Copy production node_modules from builder or install fresh
+COPY package*.json ./
+RUN npm ci --only=production
 
-# Change ownership of the app directory
-RUN chown -R nextjs:nodejs /app
-USER nextjs
+# Copy built assets from builder stage
+COPY --from=builder /app/dist ./dist
+# Copy shared schema/types if needed by the runner
+COPY --from=builder /app/shared ./shared
+
+# Create necessary directories
+RUN mkdir -p Downloads cookies
 
 # Expose port
-EXPOSE 5000
+EXPOSE 10000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:5000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
+HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:10000/health || exit 1
 
 # Start the application
-CMD ["npm", "start"] 
+CMD ["npm", "start"]

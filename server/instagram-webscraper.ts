@@ -54,7 +54,7 @@ export async function downloadInstagramWebScraper(url: string, downloadPath: str
       const result = await downloadVideoFromUrl(videoUrl, downloadPath, itemId, 'embed');
       if (result.success) return result;
     }
-  } catch (error) {
+  } catch (error: any) {
     console.log('Instagram embed approach failed:', error.message);
   }
 
@@ -81,7 +81,7 @@ export async function downloadInstagramWebScraper(url: string, downloadPath: str
         if (result.success) return result;
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.log('Instagram OEMBED API failed:', error.message);
   }
 
@@ -111,7 +111,7 @@ export async function downloadInstagramWebScraper(url: string, downloadPath: str
         if (result.success) return result;
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.log('Instagram internal API failed:', error.message);
   }
 
@@ -138,8 +138,8 @@ export async function downloadInstagramWebScraper(url: string, downloadPath: str
 
     // Look for video data in the page
     const dataRegexes = [
-      /window\._sharedData\s*=\s*({.*?});/s,
-      /window\.__additionalDataLoaded\s*\(\s*'\/p\/[^']+',\s*({.*?})\s*\)/s,
+      /window\._sharedData\s*=\s*({.*?});/i,
+      /window\.__additionalDataLoaded\s*\(\s*'\/p\/[^']+',\s*({.*?})\s*\)/i,
       /"GraphVideo"[^}]*"video_url":"([^"]+)"/g,
       /"video_url":"([^"]+)"/g
     ];
@@ -158,12 +158,12 @@ export async function downloadInstagramWebScraper(url: string, downloadPath: str
               if (result.success) return result;
             }
           }
-        } catch (e) {
+        } catch (e: any) {
           console.log('Error parsing scraped data:', e.message);
         }
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.log('Direct page scraping failed:', error.message);
   }
 
@@ -215,7 +215,7 @@ async function downloadVideoFromUrl(videoUrl: string, downloadPath: string, item
         resolve({ success: false, error: 'Download timeout' });
       }, 120000);
     });
-  } catch (error) {
+  } catch (error: any) {
     console.log(`Video download failed: ${error.message}`);
     return { success: false, error: error.message };
   }

@@ -1,7 +1,7 @@
-import { 
-  downloadItems, 
+import {
+  downloadItems,
   downloadSettings,
-  type DownloadItem, 
+  type DownloadItem,
   type InsertDownloadItem,
   type DownloadSettings,
   type InsertDownloadSettings
@@ -15,7 +15,7 @@ export interface IStorage {
   updateDownloadItem(id: number, updates: Partial<DownloadItem>): Promise<DownloadItem | undefined>;
   deleteDownloadItem(id: number): Promise<boolean>;
   clearCompletedDownloads(): Promise<void>;
-  
+
   // Settings
   getSettings(): Promise<DownloadSettings>;
   updateSettings(settings: Partial<InsertDownloadSettings>): Promise<DownloadSettings>;
@@ -46,30 +46,32 @@ export class MemStorage implements IStorage {
   }
 
   async getAllDownloadItems(): Promise<DownloadItem[]> {
-    return Array.from(this.downloadItems.values()).sort((a, b) => 
+    return Array.from(this.downloadItems.values()).sort((a, b) =>
       new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
     );
   }
 
   async createDownloadItem(insertItem: InsertDownloadItem): Promise<DownloadItem> {
     const id = this.currentId++;
-    const item: DownloadItem = { 
-      url: insertItem.url,
-      title: insertItem.title ?? null,
-      platform: insertItem.platform ?? null,
+    const item: DownloadItem = {
+      ...insertItem,
       status: insertItem.status ?? "queued",
       progress: insertItem.progress ?? 0,
+      title: insertItem.title ?? null,
+      platform: insertItem.platform ?? null,
       quality: insertItem.quality ?? null,
       format: insertItem.format ?? null,
+      formatId: insertItem.formatId ?? null,
       fileSize: insertItem.fileSize ?? null,
       downloadSpeed: insertItem.downloadSpeed ?? null,
       estimatedTime: insertItem.estimatedTime ?? null,
       filePath: insertItem.filePath ?? null,
       errorMessage: insertItem.errorMessage ?? null,
       downloadLocation: insertItem.downloadLocation ?? null,
-      id, 
+      thumbnailUrl: (insertItem as any).thumbnailUrl ?? null,
+      id,
       createdAt: new Date()
-    };
+    } as DownloadItem;
     this.downloadItems.set(id, item);
     return item;
   }
@@ -77,7 +79,7 @@ export class MemStorage implements IStorage {
   async updateDownloadItem(id: number, updates: Partial<DownloadItem>): Promise<DownloadItem | undefined> {
     const existing = this.downloadItems.get(id);
     if (!existing) return undefined;
-    
+
     const updated = { ...existing, ...updates };
     this.downloadItems.set(id, updated);
     return updated;

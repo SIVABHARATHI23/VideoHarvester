@@ -20,14 +20,11 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-app.get("/", (req, res) => {
-  res.send("Server is running");
-});
 
+// Health check endpoint for deployment monitoring
 app.get("/health", (req, res) => {
-  res.status(200).send("OK");
+  res.status(200).json({ status: "healthy", timestamp: new Date().toISOString() });
 });
-
 
 app.use((req, res, next) => {
   const start = Date.now();
