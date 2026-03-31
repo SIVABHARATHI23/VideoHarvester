@@ -2665,6 +2665,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Image proxy to bypass CORS/Referer restrictions (CRITICAL for Instagram thumbnails)
+  app.get("/api/proxy-image", async (req: Request, res: Response) => {
+    try {
+      const imageUrl = req.query.url as string;
+      if (!imageUrl) {
+        return res.status(400).json({ message: "URL is required" });
+      }
+
+      console.log(`🖼️ Proxying image: ${imageUrl}`);
+
+      const response = await axios({
+        method: 'get',
+        url: imageUrl,
+        responseType: 'stream',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+          'Referer': imageUrl.includes('instagram.com') || imageUrl.includes('cdninstagram') ? 'https://www.instagram.com/' : 
+                     imageUrl.includes('youtube.com') || imageUrl.includes('ytimg') ? 'https://www.youtube.com/' : 
+                     imageUrl.includes('pinterest.com') || imageUrl.includes('pinimg') ? 'https://www.pinterest.com/' : ''
+        },
+        timeout: 10000,
+        validateStatus: () => true // Handle all status codes
+      });
+
+      if (response.status >= 400) {
+        console.warn(`⚠️ External image returned ${response.status}: ${imageUrl}`);
+        return res.status(response.status).json({ message: "External image error" });
+      }
+
+      // Pass through content type
+      const contentType = response.headers['content-type'];
+      if (contentType) {
+        res.setHeader('Content-Type', contentType);
+      }
+
+      // Add long-term caching
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+
+      response.data.pipe(res);
+    } catch (error: any) {
+      console.error('❌ Image proxy error:', error.message);
+      res.status(500).json({ message: "Failed to proxy image" });
+    }
+  });
+
   // System status
   app.get("/api/status", async (_req: Request, res: Response) => {
     try {
@@ -2900,6 +2946,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const contentType = ext === '.mp3' ? 'audio/mpeg' :
         ext === '.webm' ? 'video/webm' : 'video/mp4';
 
+      const fileName = (item.title || 'download').replace(/[^a-z0-9]/gi, '_') + ext;
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
       const range = req.headers.range;
 
       if (range) {
@@ -2945,6 +2994,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(settings);
     } catch (error) {
       res.status(500).json({ message: "Failed to update settings" });
+    }
+  });
+
+  // Open download folder in Explorer (local only feature)
+  app.get("/api/open-folder", async (_req: Request, res: Response) => {
+    try {
+      const settings = await storage.getSettings();
+      const downloadPath = await createDownloadDirectory(settings.downloadPath || "Downloads/Videos");
+      
+      const { exec } = await import('child_process');
+      const command = process.platform === 'win32' ? `explorer "${downloadPath}"` :
+                      process.platform === 'darwin' ? `open "${downloadPath}"` :
+                      `xdg-open "${downloadPath}"`;
+      
+      exec(command, (error) => {
+        if (error) {
+          console.error(`❌ Error opening folder: ${error.message}`);
+          return res.status(500).json({ success: false, path: downloadPath, message: error.message });
+        }
+        res.json({ success: true, path: downloadPath });
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
     }
   });
 
@@ -3216,13 +3288,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: `yt-dlp spawn error: ${error instanceof Error ? error.message : String(error)}`
         });
       });
-
     } catch (error) {
       console.error('Test yt-dlp direct error:', error);
       res.json({
         success: false,
         message: `Server error: ${error instanceof Error ? error.message : String(error)}`
       });
+    }
+  });
+
+  // Proxy endpoint to fix CORS issues with Instagram thumbnails
+  app.get('/api/proxy-image', async (req: Request, res: Response) => {
+    const imageUrl = req.query.url as string;
+    
+    if (!imageUrl) {
+      return res.status(400).send('Image URL is required');
+    }
+
+    try {
+      console.log(`🖼️ Proxying image: ${imageUrl}`);
+      const response = await axios.get(imageUrl, {
+        responseType: 'arraybuffer',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
+          'Referer': 'https://www.instagram.com/'
+        }
+      });
+
+      const contentType = response.headers['content-type'];
+      res.set('Content-Type', contentType);
+      res.send(response.data);
+    } catch (error) {
+      console.error(`❌ Error proxying image: ${imageUrl}`, error instanceof Error ? error.message : String(error));
+      res.status(500).send('Error proxying image');
     }
   });
 

@@ -88,15 +88,17 @@ export default function AdvancedDownloadQueue() {
         setDownloads(downloads);
         setIsLoading(false);
         // Calculate stats
+        const totalSizeValue = downloads.reduce((acc, d) => {
+          const size = parseFloat((d.fileSize || '').replace(/[^\d.]/g, ''));
+          return acc + (isNaN(size) ? 0 : size);
+        }, 0);
+        
         const stats = {
           totalDownloads: downloads.length,
           completedDownloads: downloads.filter(d => d.status === "completed").length,
           activeDownloads: downloads.filter(d => d.status === "downloading").length,
           failedDownloads: downloads.filter(d => d.status === "failed").length,
-          totalSize: downloads.reduce((acc, d) => {
-            const size = parseFloat((d.fileSize || '').replace(/[^\d.]/g, ''));
-            return acc + (isNaN(size) ? 0 : size);
-          }, 0) + ' MB',
+          totalSize: `${totalSizeValue.toFixed(2)} MB`,
           avgSpeed: 'N/A'
         };
         setStats(stats);
@@ -136,15 +138,17 @@ export default function AdvancedDownloadQueue() {
           setDownloads(downloads);
 
           // Recalculate stats
+          const totalSizeValue = downloads.reduce((acc, d) => {
+            const size = parseFloat((d.fileSize || '').replace(/[^\d.]/g, ''));
+            return acc + (isNaN(size) ? 0 : size);
+          }, 0);
+
           const stats = {
             totalDownloads: downloads.length,
             completedDownloads: downloads.filter(d => d.status === "completed").length,
             activeDownloads: downloads.filter(d => d.status === "downloading").length,
             failedDownloads: downloads.filter(d => d.status === "failed").length,
-            totalSize: downloads.reduce((acc, d) => {
-              const size = parseFloat((d.fileSize || '').replace(/[^\d.]/g, ''));
-              return acc + (isNaN(size) ? 0 : size);
-            }, 0) + ' MB',
+            totalSize: `${totalSizeValue.toFixed(2)} MB`,
             avgSpeed: 'N/A'
           };
           setStats(stats);
@@ -494,7 +498,13 @@ export default function AdvancedDownloadQueue() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => console.log("Opening folder")}
+                  onClick={async () => {
+                    try {
+                      await fetch(`${API_URL}/api/open-folder`);
+                    } catch (error) {
+                      toast({ title: 'Error', description: 'Could not open folder.', variant: 'destructive' });
+                    }
+                  }}
                   className="glass-button hover-lift flex items-center"
                 >
                   <FolderOpen className="w-4 h-4 mr-2" />
@@ -631,7 +641,7 @@ export default function AdvancedDownloadQueue() {
                             <div className="relative w-20 h-14 sm:w-24 sm:h-16 flex items-center justify-center bg-gray-100 dark:bg-black/40 rounded-lg flex-shrink-0">
                               {download.thumbnail && download.thumbnail.trim() !== '' ? (
                                 <img
-                                  src={download.thumbnail}
+                                  src={`${API_URL}/api/proxy-image?url=${encodeURIComponent(download.thumbnail)}`}
                                   alt="Thumbnail"
                                   className="w-20 h-14 sm:w-24 sm:h-16 object-cover rounded-lg"
                                 />
@@ -731,27 +741,10 @@ export default function AdvancedDownloadQueue() {
                                         size="sm"
                                         onClick={async () => {
                                           try {
-                                            const response = await fetch(`${API_URL}/api/open-folder`);
-                                            const data = await response.json();
-
-                                            if (data.success) {
-                                              // Try to open the folder using the File System Access API
-                                              if ('showDirectoryPicker' in window) {
-                                                try {
-                                                  await (window as any).showDirectoryPicker();
-                                                } catch (error) {
-                                                  console.log('Could not open folder picker, showing path instead');
-                                                  alert(`Download folder: ${data.path}`);
-                                                }
-                                              } else {
-                                                alert(`Download folder: ${data.path}`);
-                                              }
-                                            } else {
-                                              alert('Could not open downloads folder');
-                                            }
+                                            const res = await fetch(`${API_URL}/api/open-folder`);
+                                            if (!res.ok) throw new Error();
                                           } catch (error) {
-                                            console.error('Error opening folder:', error);
-                                            alert('Could not open downloads folder');
+                                            toast({ title: 'Error', description: 'Could not open downloads folder.', variant: 'destructive' });
                                           }
                                         }}
                                         className="bg-blue-500 hover:bg-blue-600 text-white"
@@ -767,7 +760,6 @@ export default function AdvancedDownloadQueue() {
                                           link.download = `${download.title}.${download.format}`;
                                           link.click();
                                         }}
-
                                         className="bg-green-500 hover:bg-green-600 text-white"
                                       >
                                         <Download className="w-4 h-4 mr-2" />

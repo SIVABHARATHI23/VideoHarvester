@@ -1,6 +1,6 @@
 import { AppHeader } from "@/components/app-header";
 import DownloadForm from "@/components/download-form";
-import DownloadQueue from "@/components/download-queue";
+// DownloadQueue removed as per user request
 
 export default function Home() {
   return (
@@ -25,13 +25,20 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Removed Download Queue as per user request */}
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="space-y-12">
-          <DownloadQueue />
-
-          <div className="text-center mt-16 pt-12 border-t border-gray-100 italic text-gray-400">
+          <div className="text-center mt-1 pt-12 border-t border-gray-100 italic text-gray-400">
             <h3 className="text-2xl font-bold text-gray-800 mb-8 not-italic">Related Services</h3>
-            <p>Fast, Secure and Free to use Download Platform</p>
+            <p className="mb-4">Fast, Secure and Free to use Download Platform</p>
+            <div className="mt-12 pt-8 border-t border-gray-50 not-italic">
+              <p className="text-sm text-gray-500 font-bold">
+                © 2026 Sivabharathi. All Rights Reserved.
+              </p>
+              <p className="text-xs text-gray-400 mt-2">
+                Fast, Secure and Reliable Video Harvesting Technology.
+              </p>
+            </div>
           </div>
         </div>
       </div>

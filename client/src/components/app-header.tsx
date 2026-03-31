@@ -13,9 +13,14 @@ export function AppHeader() {
             <div className="w-9 h-9 bg-[#1cb8f0] rounded-xl flex items-center justify-center shadow-md">
               <Download className="text-white w-5 h-5" />
             </div>
-            <a href="/" className="text-2xl sm:text-3xl font-black tracking-tight leading-none">
-              <span className="text-[#1cb8f0]">Video</span>
-              <span className="text-white">Harvester</span>
+            <a href="/" className="text-2xl sm:text-3xl font-black tracking-tight leading-none group flex flex-col">
+              <div>
+                <span className="text-[#1cb8f0]">Video</span>
+                <span className="text-white">Harvester</span>
+              </div>
+              <span className="text-[10px] text-gray-500 font-bold -mt-0.5 tracking-widest uppercase opacity-80 group-hover:text-[#1cb8f0] transition-colors">
+                by Sivabharathi
+              </span>
             </a>
           </div>
 

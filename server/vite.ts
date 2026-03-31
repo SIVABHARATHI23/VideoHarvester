@@ -18,6 +18,7 @@ export function log(message: string, source = "express") {
 export async function setupVite(app: Express, server: Server) {
   const vitePkg = "vite";
   const { createServer: createViteServer, createLogger } = await import(vitePkg);
+  const react = await import("@vitejs/plugin-react").then((m) => m.default);
 
   const viteLogger = createLogger();
   const serverOptions = {
@@ -29,7 +30,9 @@ export async function setupVite(app: Express, server: Server) {
   console.log('Setting up Vite with HMR on port 5000');
 
   const vite = await createViteServer({
+    root: path.resolve(import.meta.dirname, "..", "client"),
     configFile: false,
+    plugins: [react()],
     customLogger: {
       ...viteLogger,
       error: (msg: string, options: any) => {
