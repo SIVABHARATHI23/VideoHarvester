@@ -469,29 +469,34 @@ async function extractYouTubeCookies(): Promise<void> {
 
     const cookieOutputPath = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
 
-    // Try to extract from different browsers
-    const browsers = ['chrome', 'edge', 'firefox', 'opera', 'brave', 'vivaldi', 'safari'];
+    // Try to extract from different browsers (Only on Windows/macOS with GUI)
+    const isGUIPlatform = process.platform === 'win32' || process.platform === 'darwin';
+    
+    if (isGUIPlatform && !process.env.RENDER) {
+      const browsers = ['chrome', 'edge', 'firefox', 'opera', 'brave', 'vivaldi', 'safari'];
 
-    for (const browser of browsers) {
-      try {
-        console.log(`🍪 Trying browser: ${browser}`);
-        const result = spawnSync('yt-dlp', [
-          '--cookies-from-browser', browser,
-          '--skip-download',
-          '--cookies', cookieOutputPath,
-          'https://www.youtube.com/watch?v=dQw4w9WgXcQ' // Test video
-        ], { timeout: 30000 });
+      for (const browser of browsers) {
+        try {
+          console.log(`🍪 Trying browser: ${browser}`);
+          const result = spawnSync('yt-dlp', [
+            '--cookies-from-browser', browser,
+            '--skip-download',
+            '--cookies', cookieOutputPath,
+            'https://www.youtube.com/watch?v=dQw4w9WgXcQ' // Test video
+          ], { timeout: 30000 });
 
-        if (result.status === 0 && existsSync(cookieOutputPath)) {
-          console.log(`✅ Successfully extracted cookies from ${browser}`);
-          return;
+          if (result.status === 0 && existsSync(cookieOutputPath)) {
+            console.log(`✅ Successfully extracted cookies from ${browser}`);
+            return;
+          }
+        } catch (error) {
+          console.log(`⚠️ Failed to extract from ${browser}`);
         }
-      } catch (error) {
-        console.log(`⚠️ Failed to extract from ${browser}`);
       }
+      console.log(`❌ Could not extract cookies from any browser`);
+    } else {
+      console.log(`🍪 Skipping browser cookie extraction on headless/cloud platform`);
     }
-
-    console.log(`❌ Could not extract cookies from any browser`);
   } catch (error) {
     console.error('Cookie extraction error:', error);
   }
@@ -676,9 +681,14 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
 
       // Use cookies if available
       const cookieFile = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
+      const rootCookieFile = path.join(process.cwd(), 'cookies.txt');
+      
       if (existsSync(cookieFile)) {
         args.push('--cookies', cookieFile);
-        console.log(`🍪 Using cookies for info extraction: ${cookieFile}`);
+        console.log(`🍪 Using cookies (local): ${cookieFile}`);
+      } else if (existsSync(rootCookieFile)) {
+        args.push('--cookies', rootCookieFile);
+        console.log(`🍪 Using cookies (root): ${rootCookieFile}`);
       }
     }
 
@@ -2799,7 +2809,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error: any) {
       console.error('❌ Video info error:', error);
-      res.status(500).json({ message: "Failed to get video info" });
+      res.status(500).json({ 
+        message: "Failed to get video info",
+        error: error.message || String(error),
+        tip: "If this persists on live, it may be due to YouTube blocking. Try a different video or wait a few minutes."
+      });
     }
   });
 

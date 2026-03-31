@@ -206,24 +206,30 @@ export default function AdvancedDownloadForm() {
       console.log('Response headers:', res.headers);
 
       if (!res.ok) {
-        const errorText = await res.text();
-        console.error('API Error Response:', errorText);
-        throw new Error(`Failed to fetch video info: ${res.status} ${res.statusText}`);
+        let errorData;
+        try {
+          errorData = await res.json();
+        } catch (e) {
+          errorData = { message: `Failed to fetch video info: ${res.status} ${res.statusText}` };
+        }
+        
+        console.error('API Error Response:', errorData);
+        setInfoError(errorData.error || errorData.message || "Could not fetch video info");
+        
+        if (errorData.tip) {
+          toast({
+            title: "Access Restricted",
+            description: errorData.tip,
+            variant: "destructive",
+          });
+        }
+        setIsAnalyzing(false);
+        return;
       }
 
-      const responseText = await res.text();
-      console.log('Response text:', responseText);
-
-      let info;
-      try {
-        info = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('JSON Parse Error:', parseError);
-        console.error('Response was not valid JSON:', responseText);
-        throw new Error('Invalid JSON response from server');
-      }
-
+      const info = await res.json();
       setVideoInfo(info);
+      setInfoError(null);
 
       // Auto-select recommended quality if available
       if (info.qualityRecommendation && info.qualityRecommendation !== selectedQuality) {
