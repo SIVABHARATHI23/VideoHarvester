@@ -86,6 +86,10 @@ export default function AdvancedDownloadForm() {
   const progressRef = useRef<HTMLDivElement | null>(null);
   const [infoError, setInfoError] = useState<string | null>(null);
 
+  // Individual progress tracking for buttons
+  const [formatProgress, setFormatProgress] = useState<Record<string, number>>({});
+  const idToFormatMap = useRef<Record<number, string>>({});
+
   // WebSocket: update download history on relevant events
   const fetchHistory = useCallback(() => {
     fetch(`${API_URL}/api/downloads`)
@@ -119,13 +123,35 @@ export default function AdvancedDownloadForm() {
   }, []);
 
   const onWebSocketMessage = useCallback((message: any) => {
-    if (message.type === 'download_complete') {
+    if (message.type === 'download_progress' && message.id !== undefined) {
+      const formatId = idToFormatMap.current[message.id];
+      if (formatId) {
+        setFormatProgress(prev => ({
+          ...prev,
+          [formatId]: message.progress
+        }));
+      }
+    }
+
+    if (message.type === 'download_complete' && message.id !== undefined) {
+      const formatId = idToFormatMap.current[message.id];
+      if (formatId) {
+        setFormatProgress(prev => {
+          const next = { ...prev };
+          delete next[formatId];
+          return next;
+        });
+        // cleanup ref
+        delete idToFormatMap.current[message.id];
+      }
+
       // Trigger the native browser download dialog using a more robust anchor injection approach
       if (message.id) {
         const downloadUrl = `${API_URL}/api/download/${message.id}`;
+
+        // Trigger the native browser download dialog using an anchor injection approach
         const link = document.createElement('a');
         link.href = downloadUrl;
-        link.target = '_blank';
         link.setAttribute('download', ''); // Force browser download
         document.body.appendChild(link);
         link.click();
@@ -134,6 +160,17 @@ export default function AdvancedDownloadForm() {
         toast({
           title: "Download complete!",
           description: "Your file is ready and has been handed off to the browser's download section.",
+        });
+      }
+    }
+
+    if (message.type === 'download_error' && message.id !== undefined) {
+      const formatId = idToFormatMap.current[message.id];
+      if (formatId) {
+        setFormatProgress(prev => {
+          const next = { ...prev };
+          delete next[formatId];
+          return next;
         });
       }
     }
@@ -212,10 +249,10 @@ export default function AdvancedDownloadForm() {
         } catch (e) {
           errorData = { message: `Failed to fetch video info: ${res.status} ${res.statusText}` };
         }
-        
+
         console.error('API Error Response:', errorData);
         setInfoError(errorData.error || errorData.message || "Could not fetch video info");
-        
+
         if (errorData.tip) {
           toast({
             title: "Access Restricted",
@@ -270,61 +307,69 @@ export default function AdvancedDownloadForm() {
 
     setIsAnalyzing(true);
     try {
-      console.log('🎵 Starting download request:', { url, format: finalFormat, quality: finalQuality, formatId: finalFormatId });
+      console.log('🎵 Starting native harvest request:', { url, format: finalFormat, quality: finalQuality, formatId: finalFormatId });
 
-      const requestBody = {
-        url,
-        format: finalFormat,
-        quality: finalQuality,
-        formatId: finalFormatId,
-        fileSize: finalFileSize,
-        title: videoInfo?.title || 'Unknown Title',
-        downloadLocation,
-        // Advanced options
-        audioCodec,
-        videoCodec,
-        startTime,
-        endTime,
-        subtitles,
-        thumbnailUrl: videoInfo?.thumbnail,
-        saveThumbnail,
-        metadata,
-        customFilename,
-      };
+      // Mark as starting in UI
+      if (finalFormatId) {
+        setFormatProgress(prev => ({ ...prev, [finalFormatId]: 0 }));
+      }
 
+      // POST to background queue instead of forcing browser to hang on a blank 'loading' tab
       const res = await fetch(`${API_URL}/api/downloads`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          url,
+          format: finalFormat || 'mp4',
+          quality: finalQuality || 'best',
+          formatId: finalFormatId || '',
+          title: (videoInfo?.title as string) || 'VideoHarvester_Content',
+          downloadLocation,
+          audioCodec,
+          videoCodec,
+          startTime,
+          endTime,
+          subtitles,
+          saveThumbnail,
+          metadata,
+          customFilename
+        }),
       });
 
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ message: "Unknown error" }));
-        throw new Error(errorData.message || `HTTP ${res.status}: ${res.statusText}`);
+        throw new Error("Failed to queue download on server.");
       }
 
-      const result = await res.json();
-      console.log('Download started successfully:', result);
-
-      const formatMessage = finalFormat === 'mp3'
-        ? `MP3 audio download started! Quality: ${finalQuality}`
-        : `Download started! Format: ${finalFormat}, Quality: ${finalQuality}`;
+      const item = await res.json();
+      
+      // Map server ID to formatId for progress tracking
+      if (item && item.id && finalFormatId) {
+        idToFormatMap.current[item.id] = finalFormatId;
+      }
 
       toast({
-        title: "Download started!",
-        description: `${formatMessage} Files will be saved to: ${downloadLocation}`,
+        title: "Harvest Started!",
+        description: `Your media is securely downloading on the server. A preview tab will automatically open when ready.`,
       });
 
-      setUrl("");
-      setVideoInfo(null);
+      // Don't clear URL/VideoInfo immediately so the user can see progress on the buttons
+      // setUrl("");
+      // setVideoInfo(null);
       setInfoError(null);
 
     } catch (err: any) {
-      console.error('Download request failed:', err);
-      let errorMessage = err.message || "Could not initiate download. Please try again.";
+      console.error('Download error:', err);
+      // Clean up progress on error
+      if (finalFormatId) {
+        setFormatProgress(prev => {
+          const next = { ...prev };
+          delete next[finalFormatId];
+          return next;
+        });
+      }
       toast({
-        title: "Failed to start download",
-        description: errorMessage,
+        title: "Download Failed",
+        description: err.message || "An error occurred while starting the download",
         variant: "destructive",
       });
     } finally {
@@ -432,7 +477,7 @@ export default function AdvancedDownloadForm() {
 
             <div className="relative group">
               <div className="absolute -inset-1 bg-gradient-to-r from-[#00b44b] to-emerald-400 rounded-3xl blur opacity-25 group-focus-within:opacity-50 transition duration-500"></div>
-              
+
               <div className="relative flex flex-col sm:flex-row bg-white/90 backdrop-blur-2xl rounded-2xl overflow-hidden shadow-2xl border border-white/50 focus-within:ring-4 focus-within:ring-[#00b44b]/20 transition-all duration-300">
                 <div className="flex-1 flex items-center relative">
                   <div className="absolute left-5 text-[#00b44b]">
@@ -499,7 +544,7 @@ export default function AdvancedDownloadForm() {
                       </Badge>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-4">
                     <h3 className="text-2xl font-black text-gray-900 leading-tight tracking-tighter">
                       {info.title || 'Unknown Asset'}
@@ -537,9 +582,17 @@ export default function AdvancedDownloadForm() {
                             </div>
                             <Button
                               onClick={() => handleDownload('mp3', f.quality || 'best', f.formatId)}
-                              className="bg-black hover:bg-gray-800 text-white font-black h-12 px-8 rounded-xl transition-all hover:scale-105 active:scale-95"
+                              disabled={formatProgress[f.formatId] !== undefined}
+                              className="bg-black hover:bg-gray-800 text-white font-black h-12 px-8 rounded-xl transition-all hover:scale-105 active:scale-95 min-w-[120px]"
                             >
-                              GRAB
+                              {formatProgress[f.formatId] !== undefined ? (
+                                <div className="flex items-center gap-2">
+                                  <Loader2 className="w-4 h-4 animate-spin text-[#ffdd00]" />
+                                  <span>{formatProgress[f.formatId]}%</span>
+                                </div>
+                              ) : (
+                                "GRAB"
+                              )}
                             </Button>
                           </div>
                         ))}
@@ -556,10 +609,8 @@ export default function AdvancedDownloadForm() {
                       </div>
 
                       <div className="grid gap-3">
-                        {(showAllFormats
-                            ? (info.formats?.filter(f => f.format !== 'MP3' && f.format !== 'IMAGE') || [])
-                            : (info.formats?.filter(f => f.format !== 'MP3' && f.format !== 'IMAGE').slice(0, 5) || [])
-                          ).map((f) => (
+                        {(info.formats?.filter(f => f.format !== 'MP3' && f.format !== 'IMAGE') || [])
+                        .map((f) => (
                           <div key={f.formatId} className="flex items-center justify-between p-5 bg-white/40 hover:bg-white/80 rounded-2xl border border-white/60 transition-all group/row shadow-sm hover:shadow-md">
                             <div className="flex items-center gap-4">
                               <span className="bg-[#00b44b] text-white w-12 h-12 flex items-center justify-center rounded-xl font-black text-xs uppercase">{f.format}</span>
@@ -570,25 +621,63 @@ export default function AdvancedDownloadForm() {
                             </div>
                             <Button
                               onClick={() => handleDownload(f.format, f.quality, f.formatId, f.fileSize)}
-                              className="bg-[#00b44b] hover:bg-[#009a3f] text-white font-black h-12 px-8 rounded-xl transition-all hover:scale-105 active:scale-95"
+                              disabled={formatProgress[f.formatId] !== undefined}
+                              className="bg-[#00b44b] hover:bg-[#009a3f] text-white font-black h-12 px-8 rounded-xl transition-all hover:scale-105 active:scale-95 min-w-[140px]"
                             >
-                              GET VIDEO
+                              {formatProgress[f.formatId] !== undefined ? (
+                                <div className="flex items-center gap-2">
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  <span>{formatProgress[f.formatId]}%</span>
+                                </div>
+                              ) : (
+                                "GET VIDEO"
+                              )}
                             </Button>
                           </div>
                         ))}
                       </div>
-                      
-                      {info.formats && info.formats.filter(f => f.format !== 'MP3').length > 5 && (
-                        <div className="pt-2">
-                          <Button 
-                            variant="ghost" 
-                            onClick={() => setShowAllFormats(!showAllFormats)}
-                            className="w-full h-12 rounded-2xl font-black text-gray-500 uppercase tracking-widest hover:bg-white/50"
-                          >
-                            {showAllFormats ? "Collapse Views" : `Explore All (${info.formats.filter(f => f.format !== 'MP3').length})`}
-                          </Button>
+
+                      {/* Photo Module - Dedicated section for Pinterest / Image Assets */}
+                      {info.formats?.some(f => f.format === 'IMAGE') && (
+                        <div className="space-y-4 pt-6 mt-6 border-t border-white/20">
+                          <div className="flex items-center gap-3">
+                            <div className="w-2 h-8 bg-[#ff1493] rounded-full"></div>
+                            <h4 className="text-lg font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                              <Camera className="w-5 h-5 text-[#ff1493]" /> HD Photo & Image
+                            </h4>
+                          </div>
+
+                          <div className="grid gap-3">
+                            {info.formats.filter(f => f.format === 'IMAGE').map((f) => (
+                              <div key={f.formatId} className="flex items-center justify-between p-5 bg-white/40 hover:bg-white/80 rounded-2xl border border-white/60 transition-all group/row shadow-sm hover:shadow-md">
+                                <div className="flex items-center gap-4">
+                                  <span className="bg-[#ff1493] text-white w-12 h-12 flex items-center justify-center rounded-xl font-black text-xs uppercase">IMG</span>
+                                  <div>
+                                    <div className="font-black text-gray-900">{f.resolution}</div>
+                                    <div className="text-[10px] font-bold text-[#ff1493] uppercase tracking-widest">{f.quality} • {f.fileSize || 'RAW'}</div>
+                                  </div>
+                                </div>
+                                <Button
+                                  onClick={() => handleDownload('IMAGE', f.quality, f.formatId)}
+                                  disabled={formatProgress[f.formatId] !== undefined}
+                                  className="bg-[#ff1493] hover:bg-[#d11079] text-white font-black h-12 px-8 rounded-xl transition-all hover:scale-105 active:scale-95 min-w-[120px]"
+                                >
+                                  {formatProgress[f.formatId] !== undefined ? (
+                                    <div className="flex items-center gap-2">
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                      <span>{formatProgress[f.formatId]}%</span>
+                                    </div>
+                                  ) : (
+                                    "GRAB"
+                                  )}
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
+
+                      {/* Full list now showing by default */}
                     </div>
                   </div>
                 </div>
@@ -603,7 +692,7 @@ export default function AdvancedDownloadForm() {
               <h3 className="text-xl font-black text-gray-900 uppercase tracking-widest flex items-center gap-3">
                 <FolderOpen className="w-6 h-6 text-[#00b44b]" /> Intelligence Matrix
               </h3>
-              
+
               <div className="space-y-4">
                 <div className="p-5 bg-white/60 rounded-2xl border border-white/80 group">
                   <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Target Directory</div>
@@ -662,9 +751,9 @@ export default function AdvancedDownloadForm() {
                 <div className="absolute top-0 right-0 p-10 opacity-10">
                   <Settings className="w-32 h-32 animate-spin-slow" />
                 </div>
-                
+
                 <h3 className="text-2xl font-black uppercase tracking-[0.3em] mb-10 text-emerald-400">Parameter Configuration</h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
                   <div className="space-y-4">
                     <label className="text-xs font-black uppercase tracking-widest text-emerald-400 flex items-center gap-2">
@@ -689,7 +778,7 @@ export default function AdvancedDownloadForm() {
                       { key: 'subtitles', label: 'Harvest Subs', state: subtitles, setState: setSubtitles }
                     ].map((option) => (
                       <label key={option.key} className="flex items-center gap-3 cursor-pointer group">
-                        <div 
+                        <div
                           className={`w-6 h-6 rounded-lg border-2 transition-all flex items-center justify-center ${option.state ? 'bg-emerald-500 border-emerald-500' : 'border-white/20'}`}
                           onClick={() => option.setState(!option.state)}
                         >
@@ -715,28 +804,28 @@ export default function AdvancedDownloadForm() {
               </div>
               <span className="uppercase tracking-[0.2em]">Batch Infiltration</span>
             </button>
-            
+
             {showBatchMode && (
-                <div className="mt-8 p-10 bg-white shadow-2xl rounded-[2.5rem] border border-gray-100 animate-in slide-in-from-top duration-500">
-                  <textarea
-                    placeholder="Drop targets here (One URL per line)..."
-                    value={batchUrls}
-                    onChange={(e) => setBatchUrls(e.target.value)}
-                    rows={6}
-                    className="w-full p-6 bg-gray-50 rounded-3xl border-2 border-transparent focus:border-[#00b44b] focus:bg-white transition-all resize-none font-bold text-gray-700"
-                  />
-                  <div className="flex justify-between items-center mt-6">
-                    <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Targets Detected: {batchUrls.split('\n').filter((u: string) => u.trim()).length}</span>
-                    <Button 
-                      onClick={handleBatchDownload} 
-                      className="bg-black hover:bg-gray-800 text-white font-black px-10 h-14 rounded-2xl"
-                      disabled={!batchUrls.trim()}
-                    >
-                      BEGIN BATCH HARVEST
-                    </Button>
-                  </div>
+              <div className="mt-8 p-10 bg-white shadow-2xl rounded-[2.5rem] border border-gray-100 animate-in slide-in-from-top duration-500">
+                <textarea
+                  placeholder="Drop targets here (One URL per line)..."
+                  value={batchUrls}
+                  onChange={(e) => setBatchUrls(e.target.value)}
+                  rows={6}
+                  className="w-full p-6 bg-gray-50 rounded-3xl border-2 border-transparent focus:border-[#00b44b] focus:bg-white transition-all resize-none font-bold text-gray-700"
+                />
+                <div className="flex justify-between items-center mt-6">
+                  <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Targets Detected: {batchUrls.split('\n').filter((u: string) => u.trim()).length}</span>
+                  <Button
+                    onClick={handleBatchDownload}
+                    className="bg-black hover:bg-gray-800 text-white font-black px-10 h-14 rounded-2xl"
+                    disabled={!batchUrls.trim()}
+                  >
+                    BEGIN BATCH HARVEST
+                  </Button>
                 </div>
-              )}
+              </div>
+            )}
           </div>
         </div>
       </div>

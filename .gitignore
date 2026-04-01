@@ -90,9 +90,12 @@ jspm_packages/
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
 
-# Temporary files
-tmpopsn4ao4.tmp
-tmpopsn4ao4.tmp-Frag1
+# Temporary harvest files
+temp_harvest/
+*.part
+*.ytdl
+*.f401.mp4
+*.temp.mp4
 
 # Executable files
 yt-dlp.exe
