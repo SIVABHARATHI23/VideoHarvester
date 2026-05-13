@@ -1111,6 +1111,13 @@ async function detectActualVideoQualities(url: string): Promise<string[]> {
   try {
     console.log(`🔍 Detecting actual available qualities for: ${url}`);
 
+    // On live servers, yt-dlp is blocked by YouTube - return defaults immediately
+    const isLiveServer = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_STATIC_URL);
+    if (isLiveServer) {
+      console.log(`🌐 Live server - skipping quality detection, returning defaults`);
+      return ['best', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p'];
+    }
+
     // Validate URL
     if (!url || (!url.includes('youtube.com') && !url.includes('youtu.be'))) {
       console.log(`⚠️ Not a YouTube URL, using fallback qualities`);
@@ -1226,6 +1233,13 @@ async function tryFallbackStrategy(url: string, resolve: (qualities: string[]) =
 
     fallbackProcess.stdout.on('data', (data) => {
       output += data.toString();
+    });
+
+    // Always capture stderr to prevent unhandled errors
+    fallbackProcess.stderr?.on('data', () => {});
+    fallbackProcess.on('error', () => {
+      console.log(`❌ Fallback strategy error, using default qualities`);
+      resolve(['best', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p']);
     });
 
     fallbackProcess.on('close', (code) => {
@@ -2855,8 +2869,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(response);
 
-      // Optionally detect qualities in background (non-blocking)
-      if (isYouTube) {
+      // Background quality detection - only run on local (never on live server)
+      const isLiveServer2 = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_STATIC_URL);
+      if (isYouTube && !isLiveServer2) {
         detectActualVideoQualities(url).then(qualities => {
           console.log(`🎯 Background quality detection completed: ${qualities.join(', ')}`);
         }).catch(err => {
