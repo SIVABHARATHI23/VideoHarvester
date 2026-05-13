@@ -319,24 +319,31 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
       );
 
       // Add cookies if available
-      const cookiePath = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
-      if (await fs.access(cookiePath).then(() => true).catch(() => false)) {
-        args.push('--cookies', cookiePath);
+      const mp3CookiePath = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
+      const mp3RootCookie = path.join(process.cwd(), 'cookies.txt');
+      const isDesktop = (process.platform === 'win32' || process.platform === 'darwin') && !process.env.RENDER && !process.env.RAILWAY_ENVIRONMENT;
+
+      if (existsSync(mp3RootCookie)) {
+        args.push('--cookies', mp3RootCookie);
+        console.log(`🍪 Using root cookies.txt for MP3 bypass`);
+      } else if (await fs.access(mp3CookiePath).then(() => true).catch(() => false)) {
+        args.push('--cookies', mp3CookiePath);
         console.log(`🍪 Using YouTube cookies for MP3 bypass`);
-      } else {
+      } else if (isDesktop) {
+        // Only try browser cookies on local desktop machines
         const possibleCookiePaths = [
           path.join(os.homedir(), 'AppData', 'Local', 'Google', 'Chrome', 'User Data', 'Default', 'Cookies'),
           path.join(os.homedir(), '.config', 'google-chrome', 'Default', 'Cookies'),
-          path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'Default', 'Cookies')
         ];
-
         for (const cookieFile of possibleCookiePaths) {
           if (existsSync(cookieFile)) {
             args.push('--cookies-from-browser', 'chrome');
-            console.log(`🍪 Using Chrome cookies for MP3 download from: ${cookieFile}`);
+            console.log(`🍪 Using Chrome cookies for MP3 download`);
             break;
           }
         }
+      } else {
+        console.log(`⚠️ No cookies available on live server - download may fail. Add cookies.txt to project root.`);
       }
     }
 
@@ -369,31 +376,34 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
 
     // Add cookies if available (CRITICAL for bypassing restrictions)
     const cookiePath = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
-    if (await fs.access(cookiePath).then(() => true).catch(() => false)) {
+    const rootCookiePath = path.join(process.cwd(), 'cookies.txt');
+    const isDesktopEnv = (process.platform === 'win32' || process.platform === 'darwin') && !process.env.RENDER && !process.env.RAILWAY_ENVIRONMENT;
+
+    if (existsSync(rootCookiePath)) {
+      args.push('--cookies', rootCookiePath);
+      console.log(`🍪 Using root cookies.txt for bypass`);
+    } else if (await fs.access(cookiePath).then(() => true).catch(() => false)) {
       args.push('--cookies', cookiePath);
       console.log(`🍪 Using YouTube cookies for bypass`);
-    } else {
-      console.log(`⚠️ No YouTube cookies found - download may be restricted`);
-      const browsers = ['chrome', 'edge', 'firefox', 'opera', 'brave', 'vivaldi'];
+    } else if (isDesktopEnv) {
+      // Only try to pull browser cookies on local desktop machines (not on servers)
       const homeDir = os.homedir();
-      for (const browser of browsers) {
-        let cookieFound = false;
-        if (browser === 'chrome') {
-          const paths = [
-            path.join(homeDir, 'AppData/Local/Google/Chrome/User Data/Default/Cookies'),
-            path.join(homeDir, 'AppData/Local/Google/Chrome/User Data/Profiles/Default/Cookies')
-          ];
-          if (paths.some(p => existsSync(p))) cookieFound = true;
-        } else if (browser === 'edge') {
-          const p = path.join(homeDir, 'AppData/Local/Microsoft/Edge/User Data/Default/Cookies');
-          if (existsSync(p)) cookieFound = true;
-        }
-        if (cookieFound || browser === 'chrome') {
+      const browserCookieFiles: Record<string, string[]> = {
+        chrome: [
+          path.join(homeDir, 'AppData/Local/Google/Chrome/User Data/Default/Cookies'),
+          path.join(homeDir, 'AppData/Local/Google/Chrome/User Data/Profiles/Default/Cookies')
+        ],
+        edge: [path.join(homeDir, 'AppData/Local/Microsoft/Edge/User Data/Default/Cookies')]
+      };
+      for (const [browser, paths] of Object.entries(browserCookieFiles)) {
+        if (paths.some(p => existsSync(p))) {
           args.push('--cookies-from-browser', browser);
           console.log(`🍪 Added ${browser} cookies argument to yt-dlp`);
           break;
         }
       }
+    } else {
+      console.log(`⚠️ No cookies available on live server. To fix downloads, add a cookies.txt to the project root.`);
     }
 
     const requestedHeight = getHeightFromQuality(item.quality);
