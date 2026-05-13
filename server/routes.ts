@@ -2355,7 +2355,13 @@ async function processDownloadQueue(): Promise<void> {
     for (let i = 0; i < itemsToProcess; i++) {
       const itemId = downloadQueue.shift();
       if (itemId && !activeDownloads.has(itemId)) {
-        setTimeout(() => downloadVideo(itemId), i * INITIAL_DOWNLOAD_DELAY);
+        setTimeout(() => {
+          downloadVideo(itemId).catch(err => {
+            console.error(`❌ downloadVideo(${itemId}) unhandled error (server kept alive):`, err?.message || err);
+            activeDownloads.delete(itemId);
+            storage.updateDownloadItem(itemId, { status: 'failed', errorMessage: err?.message || 'Unknown error' }).catch(() => {});
+          });
+        }, i * INITIAL_DOWNLOAD_DELAY);
       }
     }
   } finally {
@@ -3279,13 +3285,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Cleanup handlers
+  const isLiveServer = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_STATIC_URL);
   process.on('SIGTERM', () => {
-    console.log('🛑 Server shutting down...');
+    console.log('🛑 SIGTERM received - cleaning up downloads...');
     for (const [itemId] of Array.from(activeDownloads)) {
       cancelDownload(itemId);
     }
     stopCompletedDownloadScanner();
     wss.close();
+    // On live server let Render handle the restart; on local let process exit
+    if (!isLiveServer) process.exit(0);
   });
 
   process.on('SIGINT', () => {
