@@ -309,14 +309,7 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
     // Add YouTube bypass measures for MP3 downloads too
     if (isYouTube) {
       args.push(
-        '--extractor-args', 'youtube:player_client=android_creator,android_vr,tv_embedded,web',
-        '--user-agent', 'Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
-        '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        '--add-header', 'Accept-Language:en-US,en;q=0.5',
-        '--add-header', 'Accept-Encoding:gzip, deflate',
-        '--add-header', 'DNT:1',
-        '--add-header', 'Connection:keep-alive',
-        '--add-header', 'Upgrade-Insecure-Requests:1',
+        '--extractor-args', 'youtube:player_client=android_vr',
         '--geo-bypass',
         '--geo-bypass-country', 'US',
         '--limit-rate', '2M',
@@ -359,18 +352,7 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
 
     // Strategy 1: Use mobile/TV clients that have less restrictions
     args.push(
-      '--extractor-args', 'youtube:player_client=android_creator,android_vr,tv_embedded,web',
-
-      // Strategy 2: Rotate user agents
-      '--user-agent', 'Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
-
-      // Strategy 3: Add headers to look like real browser
-      '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-      '--add-header', 'Accept-Language:en-US,en;q=0.5',
-      '--add-header', 'Accept-Encoding:gzip, deflate',
-      '--add-header', 'DNT:1',
-      '--add-header', 'Connection:keep-alive',
-      '--add-header', 'Upgrade-Insecure-Requests:1',
+      '--extractor-args', 'youtube:player_client=android_vr',
 
       // Strategy 4: Geographic and timing obfuscation
       '--geo-bypass',
@@ -687,9 +669,7 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
     if (isYouTube) {
       // EXTREME BYPASS arguments for YouTube - REMOVED web/mweb clients that trigger bot checks
       args.push(
-        '--extractor-args', 'youtube:player_client=ios,android_creator,tv_embedded',
-        '--extractor-args', 'youtube:player_skip=web,mweb,configs',
-        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        '--extractor-args', 'youtube:player_client=android_vr',
         '--geo-bypass',
         '--no-check-certificate'
       );
@@ -1076,20 +1056,7 @@ async function detectActualVideoQualities(url: string): Promise<string[]> {
       '--no-playlist',
       '--socket-timeout', '60', // Increased timeout
       '--no-check-certificate',
-      '--no-warnings',
-      '--extractor-args', 'youtube:player_client=ios,android_creator,tv_embedded',
-      '--extractor-args', 'youtube:player_skip=configs',
-      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-      '--add-header', 'Accept-Language:en-US,en;q=0.9',
-      '--add-header', 'Accept-Encoding:gzip, deflate, br',
-      '--add-header', 'DNT:1',
-      '--add-header', 'Connection:keep-alive',
-      '--add-header', 'Upgrade-Insecure-Requests:1',
-      '--add-header', 'Sec-Fetch-Dest:document',
-      '--add-header', 'Sec-Fetch-Mode:navigate',
-      '--add-header', 'Sec-Fetch-Site:none',
-      '--add-header', 'Cache-Control:max-age=0',
+      '--extractor-args', 'youtube:player_client=android_vr',
       '--geo-bypass',
       '--geo-bypass-country', 'US'
     ];
@@ -1170,11 +1137,7 @@ async function tryFallbackStrategy(url: string, resolve: (qualities: string[]) =
 
     const fallbackArgs = [
       '--list-formats',
-      '--no-playlist',
-      '--extractor-args', 'youtube:player_client=android_creator',
-      '--user-agent', 'Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
-      '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      '--add-header', 'Accept-Language:en-US,en;q=0.5',
+      '--extractor-args', 'youtube:player_client=android_vr',
       url
     ];
 
@@ -1606,73 +1569,29 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
     // Enhanced bypass strategies with more options
     const bypassStrategies = [
       {
-        // Strategy 1: Android TV + embedded player
-        client: 'youtube:player_client=android_tv,tv_embedded,web',
-        userAgent: 'Mozilla/5.0 (SMART-TV; Linux; Tizen 2.4.0) AppleWebKit/538.1 (KHTML, like Gecko) Version/2.4.0 TV Safari/538.1',
-        description: 'Android TV + Embedded',
-        headers: {
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5',
-          'Accept-Encoding': 'gzip, deflate',
-          'DNT': '1',
-          'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1'
-        }
+        // Strategy 1: TV
+        client: 'youtube:player_client=android_vr',
+        description: 'TV'
       },
       {
-        // Strategy 2: iOS + Android creator
-        client: 'youtube:player_client=ios,android_creator,web',
-        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Mobile/15E148 Safari/604.1',
-        description: 'iOS + Android Creator',
-        headers: {
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Accept-Encoding': 'gzip, deflate',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        }
+        // Strategy 2: iOS
+        client: 'youtube:player_client=ios',
+        description: 'iOS'
       },
       {
-        // Strategy 3: Web + Android + different location
-        client: 'youtube:player_client=web,android,android_creator',
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        description: 'Web + Android + Creator',
-        headers: {
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Cache-Control': 'max-age=0',
-          'Sec-Fetch-Dest': 'document',
-          'Sec-Fetch-Mode': 'navigate',
-          'Sec-Fetch-Site': 'none',
-          'Sec-Fetch-User': '?1'
-        }
+        // Strategy 3: TV
+        client: 'youtube:player_client=android_vr',
+        description: 'TV'
       },
       {
-        // Strategy 4: Mobile web + different country
-        client: 'youtube:player_client=web,android',
-        userAgent: 'Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
-        description: 'Mobile Web + Country Bypass',
-        headers: {
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'Accept-Language': 'en-GB,en;q=0.9',
-          'Accept-Encoding': 'gzip, deflate',
-          'X-Requested-With': 'XMLHttpRequest'
-        }
+        // Strategy 4: Web
+        client: 'youtube:player_client=web',
+        description: 'Web'
       },
       {
-        // Strategy 5: Desktop + aggressive bypass
-        client: 'youtube:player_client=web,android,android_creator,tv_embedded',
-        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        description: 'Desktop + Aggressive Bypass',
-        headers: {
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'en-CA,en;q=0.9',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-          'Sec-Ch-Ua-Mobile': '?0',
-          'Sec-Ch-Ua-Platform': '"macOS"'
-        }
+        // Strategy 5: Default
+        client: 'youtube:player_client=default',
+        description: 'Default'
       }
     ];
 
@@ -1712,10 +1631,6 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
 
       // Enhanced bypass techniques
       '--extractor-args', strategy.client,
-      '--user-agent', strategy.userAgent,
-
-      // Add all strategy headers
-      ...Object.entries(strategy.headers).flatMap(([key, value]) => ['--add-header', `${key}:${value}`]),
 
       // Advanced bypass options
       '--geo-bypass',
@@ -1972,20 +1887,7 @@ async function downloadVideoWithFinalBypass(itemId: number): Promise<void> {
       '--max-sleep-interval', '60',
 
       // Most aggressive bypass techniques
-      '--extractor-args', 'youtube:player_client=android_tv,tv_embedded,ios,android_creator,web',
-      '--user-agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-
-      // Aggressive headers
-      '--add-header', 'Accept:*/*',
-      '--add-header', 'Accept-Language:en-US,en;q=0.5',
-      '--add-header', 'Accept-Encoding:gzip, deflate',
-      '--add-header', 'DNT:1',
-      '--add-header', 'Connection:keep-alive',
-      '--add-header', 'Upgrade-Insecure-Requests:1',
-      '--add-header', 'Sec-Fetch-Dest:document',
-      '--add-header', 'Sec-Fetch-Mode:navigate',
-      '--add-header', 'Sec-Fetch-Site:none',
-      '--add-header', 'Cache-Control:max-age=0',
+      '--extractor-args', 'youtube:player_client=android_vr',
 
       // Geographic and network bypass
       '--geo-bypass',
@@ -3411,15 +3313,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         '--no-playlist',
         '--socket-timeout', '30',
         '--no-check-certificate',
-        '--no-warnings',
-        '--extractor-args', 'youtube:player_skip=web,mweb,player_client=ios,android_creator,tv_embedded',
-        '--user-agent', 'Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
-        '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        '--add-header', 'Accept-Language:en-US,en;q=0.5',
-        '--add-header', 'Accept-Encoding:gzip, deflate',
-        '--add-header', 'DNT:1',
-        '--add-header', 'Connection:keep-alive',
-        '--add-header', 'Upgrade-Insecure-Requests:1'
+        '--extractor-args', 'youtube:player_client=android_vr'
       ];
 
       // Add cookies if available
