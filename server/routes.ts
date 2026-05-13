@@ -2852,6 +2852,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Default to best quality as the recommendation! SaveFrom always auto-selects highest without freezing.
       const qualityRecommendation = 'best';
 
+      const isLiveServerCtx = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_STATIC_URL);
+      const cookiesAvailable = existsSync(path.join(process.cwd(), 'cookies.txt')) ||
+                               existsSync(path.join(__dirname, '..', 'www.youtube.com_cookies.txt'));
+
       const response = {
         ...info,
         availableQualities,
@@ -2863,7 +2867,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         supports1080p: availableQualities.includes('1080p') || availableQualities.includes('Full HD'),
         supports720p: availableQualities.includes('720p') || availableQualities.includes('HD'),
         bypassApplied: isYouTube,
-        qualityDetectionApplied: true
+        qualityDetectionApplied: true,
+        // Warn the frontend if downloads will fail (live server without cookies)
+        downloadWarning: (isLiveServerCtx && isYouTube && !cookiesAvailable)
+          ? 'Downloads are not available on the live server yet. To enable: set the YT_COOKIES_BASE64 environment variable in Render dashboard.'
+          : null
       };
 
       console.log(`✅ Video info extracted quickly:`, {
@@ -2924,9 +2932,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       validatedData.platform = detectPlatform(validatedData.url);
+
+      // Dedup: reject if same URL+quality+format is already active or queued
+      const existing = await storage.getAllDownloadItems();
+      const isDuplicate = existing.some(d =>
+        d.url === validatedData.url &&
+        d.quality === validatedData.quality &&
+        d.format === validatedData.format &&
+        (d.status === 'queued' || d.status === 'downloading')
+      );
+      if (isDuplicate) {
+        return res.status(200).json({ message: 'Already in queue', duplicate: true });
+      }
+
       console.log(`🔍 DEBUG: Before storage - validatedData:`, JSON.stringify(validatedData, null, 2));
       const item = await storage.createDownloadItem(validatedData);
-      console.log(`🔍 DEBUG: After storage - created item:`, JSON.stringify(item, null, 2));
+      console.log(`🔍 DEBUG: After storage - created item id:`, item.id);
       addToQueue(item.id);
 
       res.json(item);
