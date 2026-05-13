@@ -606,6 +606,31 @@ function formatFileSize(bytes: number | string | undefined): string {
   return `${fileSize.toFixed(2)} ${units[unitIndex]}`;
 }
 
+// Helper: build VideoInfo from OEmbed data + default formats (used on live servers)
+function buildYouTubeFallbackInfo(oembed: { title: string; thumbnail: string; uploader: string; videoId: string }): VideoInfo {
+  return {
+    title: oembed.title,
+    platform: 'YouTube',
+    duration: 'Unknown',
+    views: 'Unknown',
+    uploader: oembed.uploader,
+    thumbnail: oembed.thumbnail,
+    availableFormats: ['mp4', 'mp3', 'webm'],
+    availableQualities: ['2160p', '1440p', '1080p', '720p', '480p', '360p'],
+    fileSize: 'Unknown',
+    formats: [
+      { formatId: 'mp3-high', resolution: '320KBPS', quality: 'high', fileSize: 'Unknown', format: 'MP3', codec: 'libmp3lame' },
+      { formatId: 'mp3-med',  resolution: '128KBPS', quality: 'medium', fileSize: 'Unknown', format: 'MP3', codec: 'libmp3lame' },
+      { formatId: 'bestvideo+bestaudio/best',              resolution: '2160P', quality: '2160p', fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
+      { formatId: 'bestvideo[height<=1440]+bestaudio/best', resolution: '1440P', quality: '1440p', fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
+      { formatId: 'bestvideo[height<=1080]+bestaudio/best', resolution: '1080P', quality: '1080p', fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
+      { formatId: 'bestvideo[height<=720]+bestaudio/best',  resolution: '720P',  quality: '720p',  fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
+      { formatId: 'bestvideo[height<=480]+bestaudio/best',  resolution: '480P',  quality: '480p',  fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
+      { formatId: 'bestvideo[height<=360]+bestaudio/best',  resolution: '360P',  quality: '360p',  fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
+    ]
+  };
+}
+
 // Enhanced video info extraction with bypass - OPTIMIZED for speed
 async function extractVideoInfo(url: string): Promise<VideoInfo> {
   if (!validateYtDlp()) {
@@ -649,6 +674,14 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
     } catch (e: any) {
       console.log(`⚠️ FAST PATH FAILED, falling back to yt-dlp:`, e.message);
     }
+  }
+
+  // On live servers (Render/Railway), yt-dlp always fails due to YouTube blocking datacenter IPs.
+  // If OEmbed already fetched the title successfully, skip yt-dlp and return default formats immediately.
+  const isLiveServer = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_STATIC_URL);
+  if (isYouTube && isLiveServer && oembedFallback) {
+    console.log(`🌐 Live server detected - skipping yt-dlp, using OEmbed data with default formats`);
+    return buildYouTubeFallbackInfo(oembedFallback);
   }
 
   // For YouTube, extract cookies first (but don't wait too long)
@@ -907,33 +940,20 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
           return;
         }
 
-        // YouTube bot-detection fallback: live servers (datacenter IPs) get blocked.
-        // If we have OEmbed data, return default formats so the UI still works.
-        const isBotBlock = stderr.includes('Sign in to confirm') || stderr.includes('bot');
-        if (isYouTube && isBotBlock && oembedFallback) {
-          console.log(`⚠️ yt-dlp blocked on live server - using OEmbed fallback with default formats`);
-          const defaultFormats = [
-            { formatId: 'mp3-high', resolution: '320KBPS', quality: 'high', fileSize: 'Unknown', format: 'MP3', codec: 'libmp3lame' },
-            { formatId: 'mp3-med',  resolution: '128KBPS', quality: 'medium', fileSize: 'Unknown', format: 'MP3', codec: 'libmp3lame' },
-            { formatId: 'bestvideo+bestaudio/best', resolution: '2160P', quality: '2160p', fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
-            { formatId: 'bestvideo[height<=1440]+bestaudio/best', resolution: '1440P', quality: '1440p', fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
-            { formatId: 'bestvideo[height<=1080]+bestaudio/best', resolution: '1080P', quality: '1080p', fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
-            { formatId: 'bestvideo[height<=720]+bestaudio/best',  resolution: '720P',  quality: '720p',  fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
-            { formatId: 'bestvideo[height<=480]+bestaudio/best',  resolution: '480P',  quality: '480p',  fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
-            { formatId: 'bestvideo[height<=360]+bestaudio/best',  resolution: '360P',  quality: '360p',  fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
-          ];
-          resolve({
-            title: oembedFallback.title,
-            platform: 'YouTube',
-            duration: 'Unknown',
-            views: 'Unknown',
-            uploader: oembedFallback.uploader,
-            thumbnail: oembedFallback.thumbnail,
-            availableFormats: ['mp4', 'mp3', 'webm'],
-            availableQualities: ['2160p', '1440p', '1080p', '720p', '480p', '360p'],
-            fileSize: 'Unknown',
-            formats: defaultFormats
-          });
+        // YouTube failure fallback: on live servers any yt-dlp YouTube error should
+        // return OEmbed data with default formats instead of failing the whole request.
+        const isYouTubeBlocked = isYouTube && oembedFallback && (
+          stderr.includes('Sign in to confirm') ||
+          stderr.includes('bot') ||
+          stderr.includes('Failed to extract any player response') ||
+          stderr.includes('HTTP Error 429') ||
+          stderr.includes('HTTP Error 403') ||
+          stderr.includes('This video is not available') ||
+          code !== 0
+        );
+        if (isYouTubeBlocked) {
+          console.log(`⚠️ yt-dlp blocked/failed on live server - using OEmbed fallback with default formats`);
+          resolve(buildYouTubeFallbackInfo(oembedFallback!));
           return;
         }
 
