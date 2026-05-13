@@ -2633,9 +2633,24 @@ async function getYouTubeVideoTitle(url: string): Promise<string> {
 }
 
 // Main export function
+// Write YouTube cookies from base64 env var (set YT_COOKIES_BASE64 in Render dashboard)
+async function initializeCookiesFromEnv(): Promise<void> {
+  const cookiesBase64 = process.env.YT_COOKIES_BASE64;
+  if (!cookiesBase64) return;
+  try {
+    const cookiesContent = Buffer.from(cookiesBase64, 'base64').toString('utf-8');
+    const cookiesPath = path.join(process.cwd(), 'cookies.txt');
+    await fs.writeFile(cookiesPath, cookiesContent, 'utf-8');
+    console.log(`🍪 YouTube cookies loaded from YT_COOKIES_BASE64 env var → ${cookiesPath}`);
+  } catch (e) {
+    console.error('❌ Failed to decode YT_COOKIES_BASE64:', e);
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Update yt-dlp and restore history
   console.log('🔄 Initializing ANTI-BLOCK download server...');
+  await initializeCookiesFromEnv();
   await updateYtDlp();
   await scanDownloadFolderAndRestoreHistory();
 
