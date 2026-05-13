@@ -604,7 +604,10 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
 
   const isYouTube = url.toLowerCase().includes('youtube.com') || url.toLowerCase().includes('youtu.be');
 
-  // FAST PATH for YouTube (Instant metadata like vidssave / 2ms retrieval)
+  // Store OEmbed data for fallback if yt-dlp is blocked (e.g. live server datacenter IP)
+  let oembedFallback: { title: string; thumbnail: string; uploader: string; videoId: string } | null = null;
+
+  // FAST PATH for YouTube
   if (isYouTube) {
     try {
       console.log(`🚀 FAST PATH: Attempting instant YouTube metadata fetch via OEmbed for: ${url}`);
@@ -625,9 +628,13 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
       
       if (response.data && response.data.title) {
         console.log(`✅ FAST PATH SUCCESS: Got metadata for "${response.data.title}" instantly!`);
-        // We no longer return instantly with mock formats to avoid "VARIES" labels.
-        // Instead, we store the basics to resolve later or continue to yt-dlp.
-        // We'll proceed to yt-dlp to get actual sizes and formats.
+        // Store for fallback in case yt-dlp fails on live server
+        oembedFallback = {
+          title: response.data.title,
+          thumbnail: videoId ? `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg` : '',
+          uploader: response.data.author_name || 'Unknown',
+          videoId: videoId || ''
+        };
       }
     } catch (e: any) {
       console.log(`⚠️ FAST PATH FAILED, falling back to yt-dlp:`, e.message);
@@ -889,6 +896,37 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
             .catch(err => reject(new Error(`Pinterest extraction failed: ${err.message}`)));
           return;
         }
+
+        // YouTube bot-detection fallback: live servers (datacenter IPs) get blocked.
+        // If we have OEmbed data, return default formats so the UI still works.
+        const isBotBlock = stderr.includes('Sign in to confirm') || stderr.includes('bot');
+        if (isYouTube && isBotBlock && oembedFallback) {
+          console.log(`⚠️ yt-dlp blocked on live server - using OEmbed fallback with default formats`);
+          const defaultFormats = [
+            { formatId: 'mp3-high', resolution: '320KBPS', quality: 'high', fileSize: 'Unknown', format: 'MP3', codec: 'libmp3lame' },
+            { formatId: 'mp3-med',  resolution: '128KBPS', quality: 'medium', fileSize: 'Unknown', format: 'MP3', codec: 'libmp3lame' },
+            { formatId: 'bestvideo+bestaudio/best', resolution: '2160P', quality: '2160p', fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
+            { formatId: 'bestvideo[height<=1440]+bestaudio/best', resolution: '1440P', quality: '1440p', fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
+            { formatId: 'bestvideo[height<=1080]+bestaudio/best', resolution: '1080P', quality: '1080p', fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
+            { formatId: 'bestvideo[height<=720]+bestaudio/best',  resolution: '720P',  quality: '720p',  fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
+            { formatId: 'bestvideo[height<=480]+bestaudio/best',  resolution: '480P',  quality: '480p',  fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
+            { formatId: 'bestvideo[height<=360]+bestaudio/best',  resolution: '360P',  quality: '360p',  fileSize: 'Unknown', format: 'MP4', codec: 'avc1' },
+          ];
+          resolve({
+            title: oembedFallback.title,
+            platform: 'YouTube',
+            duration: 'Unknown',
+            views: 'Unknown',
+            uploader: oembedFallback.uploader,
+            thumbnail: oembedFallback.thumbnail,
+            availableFormats: ['mp4', 'mp3', 'webm'],
+            availableQualities: ['2160p', '1440p', '1080p', '720p', '480p', '360p'],
+            fileSize: 'Unknown',
+            formats: defaultFormats
+          });
+          return;
+        }
+
         reject(new Error(`yt-dlp failed with code ${code}: ${stderr.substring(0, 200)}`));
       }
     });
