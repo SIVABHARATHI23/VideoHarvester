@@ -80,6 +80,18 @@ const MAX_RETRY_ATTEMPTS = 3; // Increased retries for bypassing blocks
 const INITIAL_DOWNLOAD_DELAY = 1000;
 const MIN_FILE_SIZE = 512 * 1024;
 
+// ── Crash guards ──────────────────────────────────────────────────────────────
+// Prevent yt-dlp errors / unhandled rejections from killing the whole process
+// on Render (where a crash triggers a full server restart and shows "Server shutting down")
+process.on('uncaughtException', (err) => {
+  console.error('🛡️ uncaughtException (server kept alive):', err?.message || err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('🛡️ unhandledRejection (server kept alive):', reason);
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
+
 // Utility functions
 function broadcastToClients(message: WebSocketMessage): void {
   const messageStr = JSON.stringify(message);
@@ -1410,6 +1422,26 @@ async function downloadVideo(itemId: number): Promise<void> {
     if (isYouTube) {
       await extractYouTubeCookies();
     }
+
+    // ── Live-server guard ─────────────────────────────────────────────────────
+    // On Render/Railway, YouTube blocks all downloads from datacenter IPs.
+    // Without a cookies.txt the download WILL fail - skip yt-dlp entirely and
+    // mark it failed right away so the server stays up.
+    const isLiveServer = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_STATIC_URL);
+    const cookiesExist = existsSync(path.join(process.cwd(), 'cookies.txt')) ||
+                         existsSync(path.join(__dirname, '..', 'www.youtube.com_cookies.txt'));
+    if (isYouTube && isLiveServer && !cookiesExist) {
+      console.log(`🚫 Live server without cookies - cannot download YouTube video ${itemId}`);
+      await storage.updateDownloadItem(itemId, {
+        status: 'failed',
+        errorMessage: 'YouTube downloads require cookies on the live server. Ask the admin to set the YT_COOKIES_BASE64 environment variable in Render dashboard.'
+      });
+      broadcastToClients({ type: 'download_error', id: itemId, error: 'YouTube blocked on live server - cookies required' });
+      activeDownloads.delete(itemId);
+      processDownloadQueue();
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     // Handle IMAGE formats separately
     if (item.format === 'IMAGE') {
