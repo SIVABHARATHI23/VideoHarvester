@@ -254,7 +254,8 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
     '--retries', '30',
     '--fragment-retries', '30',
     '--no-warnings',
-    '--no-check-certificate'
+    '--no-check-certificate',
+    '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   ];
 
   // Handle TRIMMING (Start/End times)
@@ -338,9 +339,9 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
       if (existsSync(mp3RootCookie)) {
         args.push('--cookies', mp3RootCookie);
         console.log(`🍪 Using root cookies.txt for MP3 bypass`);
-      } else if (await fs.access(mp3CookiePath).then(() => true).catch(() => false)) {
+      } else if (existsSync(mp3CookiePath)) {
         args.push('--cookies', mp3CookiePath);
-        console.log(`🍪 Using YouTube cookies for MP3 bypass`);
+        console.log(`🍪 Using local www.youtube.com_cookies.txt for MP3 bypass`);
       } else if (isDesktop) {
         // Only try browser cookies on local desktop machines
         const possibleCookiePaths = [
@@ -1740,6 +1741,7 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
       '--no-warnings',
       '--concurrent-fragments', '1', // Single fragment to avoid detection
       '--no-check-certificate',
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       '--sleep-interval', '3',
       '--max-sleep-interval', '15',
 
@@ -1784,17 +1786,22 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
     ];
 
     // Enhanced cookie handling
-    const cookiePath = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
-    if (existsSync(cookiePath)) {
-      args.push('--cookies', cookiePath);
-      console.log(`🍪 Using YouTube cookies for bypass`);
+    const rootCookiePath = path.join(process.cwd(), 'cookies.txt');
+    const localCookiePath = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
+    
+    if (existsSync(rootCookiePath)) {
+      args.push('--cookies', rootCookiePath);
+      console.log(`🍪 Using root cookies.txt for bypass`);
+    } else if (existsSync(localCookiePath)) {
+      args.push('--cookies', localCookiePath);
+      console.log(`🍪 Using local YouTube cookies for bypass`);
     } else {
       // Try to extract cookies from browser if not available
       console.log(`⚠️ No cookies found, attempting browser extraction`);
       try {
         await extractYouTubeCookies();
-        if (existsSync(cookiePath)) {
-          args.push('--cookies', cookiePath);
+        if (existsSync(localCookiePath)) {
+          args.push('--cookies', localCookiePath);
           console.log(`✅ Successfully extracted cookies`);
         }
       } catch (error) {
