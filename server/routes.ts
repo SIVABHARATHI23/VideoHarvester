@@ -372,7 +372,7 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
 
     // Strategy 1: Use mobile/TV clients that have less restrictions
     args.push(
-      '--extractor-args', 'youtube:player_client=android_vr',
+      '--extractor-args', 'youtube:player_client=ios,android,web',
 
       // Strategy 4: Geographic and timing obfuscation
       '--geo-bypass',
@@ -399,24 +399,15 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
       args.push('--cookies', cookiePath);
       console.log(`🍪 Using YouTube cookies for bypass`);
     } else if (isDesktopEnv) {
-      // Only try to pull browser cookies on local desktop machines (not on servers)
-      const homeDir = os.homedir();
-      const browserCookieFiles: Record<string, string[]> = {
-        chrome: [
-          path.join(homeDir, 'AppData/Local/Google/Chrome/User Data/Default/Cookies'),
-          path.join(homeDir, 'AppData/Local/Google/Chrome/User Data/Profiles/Default/Cookies')
-        ],
-        edge: [path.join(homeDir, 'AppData/Local/Microsoft/Edge/User Data/Default/Cookies')]
-      };
-      for (const [browser, paths] of Object.entries(browserCookieFiles)) {
-        if (paths.some(p => existsSync(p))) {
-          args.push('--cookies-from-browser', browser);
-          console.log(`🍪 Added ${browser} cookies argument to yt-dlp`);
-          break;
-        }
+      // Direct browser cookie usage as last resort
+      const browsers = ['chrome', 'edge', 'firefox', 'brave'];
+      for (const browser of browsers) {
+        args.push('--cookies-from-browser', browser);
+        console.log(`🍪 Adding ${browser} cookies-from-browser fallback`);
+        break; // Just use the first one
       }
     } else {
-      console.log(`⚠️ No cookies available on live server. To fix downloads, add a cookies.txt to the project root.`);
+      console.log(`⚠️ No cookies available. Downloads may be blocked.`);
     }
 
     const requestedHeight = getHeightFromQuality(item.quality);
@@ -456,15 +447,15 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
   return args;
 }
 
-async function extractYouTubeCookies(): Promise<void> {
+async function extractYouTubeCookies(force: boolean = false): Promise<boolean> {
   const cookieOutputPath = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
   try {
-    if (existsSync(cookieOutputPath)) {
+    if (existsSync(cookieOutputPath) && !force) {
       const stats = await fs.stat(cookieOutputPath);
       const oneHourAgo = Date.now() - (60 * 60 * 1000);
       if (stats.mtimeMs > oneHourAgo) {
         console.log(`🍪 Using recent YouTube cookies found at: ${cookieOutputPath}`);
-        return;
+        return true;
       }
     }
   } catch (e) {}
@@ -473,14 +464,19 @@ async function extractYouTubeCookies(): Promise<void> {
   const isGUIPlatform = process.platform === 'win32' || process.platform === 'darwin';
   if (!isGUIPlatform || process.env.RENDER) {
     console.log(`🍪 Skipping browser cookie extraction on this platform`);
-    return;
+    return false;
   }
 
-  const browsers = ['chrome', 'edge', 'firefox', 'brave', 'opera'];
-  const extractions = browsers.map(async (browser) => {
-    return new Promise<boolean>((resolve) => {
+  const browsers = ['chrome', 'edge', 'firefox', 'brave', 'opera', 'vivaldi'];
+  let overallSuccess = false;
+
+  for (const browser of browsers) {
+    console.log(`🍪 Trying to extract cookies from ${browser}...`);
+    const success = await new Promise<boolean>((resolve) => {
       const tempOutput = path.join(os.tmpdir(), `yt_cookies_${browser}_${Date.now()}.txt`);
-      const ytdlp = spawn('yt-dlp', [
+      const ytdlpPath = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
+      
+      const ytdlp = spawn(ytdlpPath, [
         '--cookies-from-browser', browser,
         '--skip-download',
         '--cookies', tempOutput,
@@ -490,28 +486,45 @@ async function extractYouTubeCookies(): Promise<void> {
       const timeout = setTimeout(() => {
         ytdlp.kill('SIGKILL');
         resolve(false);
-      }, 7000);
+      }, 10000);
+
+      let stderr = '';
+      ytdlp.stderr?.on('data', (data) => { stderr += data.toString(); });
 
       ytdlp.on('close', async (code) => {
         clearTimeout(timeout);
         if (code === 0 && existsSync(tempOutput)) {
           try {
             const content = await fs.readFile(tempOutput);
-            if (content.length > 50) {
+            if (content.length > 500) { 
                await fs.writeFile(cookieOutputPath, content);
-               console.log(`✅ Extracted cookies from ${browser}`);
+               console.log(`✅ Successfully extracted cookies from ${browser}`);
                resolve(true);
-            } else resolve(false);
+            } else {
+              console.log(`⚠️ Cookies from ${browser} too small, probably not logged in`);
+              resolve(false);
+            }
           } catch (e) { resolve(false); }
-        } else resolve(false);
+        } else {
+          if (stderr.includes('Could not copy')) {
+            console.log(`⚠️ ${browser} database is locked (browser likely open)`);
+          }
+          resolve(false);
+        }
       });
       ytdlp.on('error', () => { clearTimeout(timeout); resolve(false); });
     });
-  });
 
-  for (const extraction of extractions) {
-     if (await extraction) break; 
+    if (success) {
+      overallSuccess = true;
+      break; 
+    }
   }
+
+  if (!overallSuccess) {
+    console.log(`❌ Failed to extract cookies from any browser. Please ensure you are logged into YouTube in your browser and it's closed.`);
+  }
+  return overallSuccess;
 }
 
 function getAudioBitrate(quality: string | null): string {
@@ -1142,11 +1155,10 @@ async function detectActualVideoQualities(url: string): Promise<string[]> {
     const args = [
       '--list-formats',
       '--no-playlist',
-      '--socket-timeout', '60', // Increased timeout
+      '--socket-timeout', '30',
       '--no-check-certificate',
-      '--extractor-args', 'youtube:player_client=android_vr',
-      '--geo-bypass',
-      '--geo-bypass-country', 'US'
+      '--extractor-args', 'youtube:player_client=ios,android,web',
+      '--geo-bypass'
     ];
 
     // Add cookies if available
@@ -1330,64 +1342,63 @@ function parseAvailableQualities(formatListOutput: string): string[] {
       }
     }
 
-    // Look for format codes that indicate 4K/8K - more comprehensive detection
-    if (line.includes('137') || line.includes('299') || line.includes('400') ||
-      line.includes('401') || line.includes('402') || line.includes('403') ||
-      line.includes('404') || line.includes('405') || line.includes('406')) {
+    // Look for format codes that indicate 4K/8K - use boundary check \b
+    if (/\b(137|299|400|401|402|403|404|405|406)\b/.test(line)) {
       qualities.add('2160p');
       qualities.add('4K');
       console.log(`✅ Added 4K quality from format code in line: ${i}`);
     }
 
     // Look for 8K format codes
-    if (line.includes('701') || line.includes('702') || line.includes('703') ||
-      line.includes('704') || line.includes('705') || line.includes('706')) {
+    if (/\b(701|702|703|704|705|706)\b/.test(line)) {
       qualities.add('4320p');
       qualities.add('8K');
       console.log(`✅ Added 8K quality from format code in line: ${i}`);
     }
 
-    // Look for height indicators without 'p' (like "2160" or "4320")
-    const heightMatch = line.match(/(\d{3,4})x\d{3,4}/);
-    if (heightMatch) {
-      const height = parseInt(heightMatch[1]);
+    // Look for height indicators in WxH format (e.g. 1920x1080)
+    // We want the SECOND number (height)
+    const dimensionMatch = line.match(/\d{3,4}x(\d{3,4})/);
+    if (dimensionMatch) {
+      const height = parseInt(dimensionMatch[1]);
       console.log(`🔍 Found height from dimensions: ${height} in line: ${i}`);
 
       if (height >= 4320) {
         qualities.add('4320p');
         qualities.add('8K');
-        console.log(`✅ Added 8K quality from dimensions: ${height}`);
       }
       else if (height >= 2160) {
         qualities.add('2160p');
         qualities.add('4K');
-        console.log(`✅ Added 4K quality from dimensions: ${height}`);
       }
       else if (height >= 1440) {
         qualities.add('1440p');
         qualities.add('2K');
-        console.log(`✅ Added 2K quality from dimensions: ${height}`);
       }
       else if (height >= 1080) {
         qualities.add('1080p');
         qualities.add('Full HD');
-        console.log(`✅ Added 1080p quality from dimensions: ${height}`);
       }
       else if (height >= 720) {
         qualities.add('720p');
         qualities.add('HD');
-        console.log(`✅ Added 720p quality from dimensions: ${height}`);
+      }
+      else if (height >= 480) {
+        qualities.add('480p');
+      }
+      else if (height >= 360) {
+        qualities.add('360p');
       }
     }
 
-    // Look for quality indicators in format descriptions
-    if (line.toLowerCase().includes('4k') || line.toLowerCase().includes('2160')) {
+    // Look for quality indicators in format descriptions - use boundary check \b4k\b
+    if (/\b4k\b/i.test(line) || /\b2160p?\b/i.test(line)) {
       qualities.add('2160p');
       qualities.add('4K');
       console.log(`✅ Added 4K quality from description in line: ${i}`);
     }
 
-    if (line.toLowerCase().includes('8k') || line.toLowerCase().includes('4320')) {
+    if (/\b8k\b/i.test(line) || /\b4320p?\b/i.test(line)) {
       qualities.add('4320p');
       qualities.add('8K');
       console.log(`✅ Added 8K quality from description in line: ${i}`);
@@ -1684,29 +1695,29 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
     // Enhanced bypass strategies with more options
     const bypassStrategies = [
       {
-        // Strategy 1: TV
-        client: 'youtube:player_client=android_vr',
-        description: 'TV'
-      },
-      {
-        // Strategy 2: iOS
+        // Strategy 1: iOS (Strongest currently)
         client: 'youtube:player_client=ios',
         description: 'iOS'
       },
       {
-        // Strategy 3: TV
+        // Strategy 2: Android
+        client: 'youtube:player_client=android',
+        description: 'Android'
+      },
+      {
+        // Strategy 3: Web + iOS combination
+        client: 'youtube:player_client=web,ios',
+        description: 'Web+iOS'
+      },
+      {
+        // Strategy 4: TV (Android VR)
         client: 'youtube:player_client=android_vr',
         description: 'TV'
       },
       {
-        // Strategy 4: Web
-        client: 'youtube:player_client=web',
-        description: 'Web'
-      },
-      {
-        // Strategy 5: Default
-        client: 'youtube:player_client=default',
-        description: 'Default'
+        // Strategy 5: MWeb (Mobile Web)
+        client: 'youtube:player_client=mweb',
+        description: 'Mobile Web'
       }
     ];
 
@@ -1768,8 +1779,8 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
         '--extract-audio',
         '--audio-format', 'mp3',
         '--audio-quality', '0',
-        '--format', 'bestaudio[ext=m4a]/bestaudio/best',
-        '--output', outputTemplate // Force exact output filename for MP3
+        '--format', 'bestaudio/best', // More flexible audio selection
+        '--output', outputTemplate 
       ] : [
         '--format', getBypassFormat(item.quality || 'best'),
         '--merge-output-format', 'mp4',
@@ -1789,23 +1800,19 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
     const rootCookiePath = path.join(process.cwd(), 'cookies.txt');
     const localCookiePath = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
     
-    if (existsSync(rootCookiePath)) {
-      args.push('--cookies', rootCookiePath);
-      console.log(`🍪 Using root cookies.txt for bypass`);
-    } else if (existsSync(localCookiePath)) {
+    // Force cookie refresh on retry
+    console.log(`🍪 Attempting FRESH cookie extraction for bypass retry...`);
+    const extractionSuccess = await extractYouTubeCookies(true);
+    
+    if (extractionSuccess) {
       args.push('--cookies', localCookiePath);
-      console.log(`🍪 Using local YouTube cookies for bypass`);
+      console.log(`✅ Successfully extracted fresh cookies`);
     } else {
-      // Try to extract cookies from browser if not available
-      console.log(`⚠️ No cookies found, attempting browser extraction`);
-      try {
-        await extractYouTubeCookies();
-        if (existsSync(localCookiePath)) {
-          args.push('--cookies', localCookiePath);
-          console.log(`✅ Successfully extracted cookies`);
-        }
-      } catch (error) {
-        console.log(`❌ Cookie extraction failed: ${error}`);
+      console.log(`⚠️ Fresh cookie extraction failed. Using existing cookies if available.`);
+      if (existsSync(rootCookiePath)) {
+        args.push('--cookies', rootCookiePath);
+      } else if (existsSync(localCookiePath)) {
+        args.push('--cookies', localCookiePath);
       }
     }
 
