@@ -325,23 +325,26 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
 }
 
 async function extractYouTubeCookies(force: boolean = false): Promise<boolean> {
-  const cookieOutputPath = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
+  const cookieOutputPath = path.join(process.cwd(), 'cookies.txt');
   try {
     if (existsSync(cookieOutputPath) && !force) {
       const stats = await fs.stat(cookieOutputPath);
-      const oneHourAgo = Date.now() - (60 * 60 * 1000);
-      if (stats.mtimeMs > oneHourAgo) {
-        console.log(`🍪 Using recent YouTube cookies found at: ${cookieOutputPath}`);
+      const content = await fs.readFile(cookieOutputPath, 'utf-8');
+      
+      // Check if it's a valid YouTube cookie file (Netscape format)
+      if (content.includes('youtube.com') || content.includes('.google.com')) {
+        console.log(`🍪 Using existing YouTube cookies: ${cookieOutputPath}`);
         return true;
       }
     }
   } catch (e) {}
 
-  console.log(`🍪 Extracting fresh YouTube cookies (Optimized Parallel Mode)...`);
   const isGUIPlatform = process.platform === 'win32' || process.platform === 'darwin';
-  if (!isGUIPlatform || process.env.RENDER) {
-    console.log(`🍪 Skipping browser cookie extraction on this platform`);
-    return false;
+  const isLive = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT);
+
+  if (isLive || !isGUIPlatform) {
+    console.log(`🍪 Skipping browser extraction on live server - using manual cookies/env.`);
+    return existsSync(cookieOutputPath);
   }
 
   const browsers = ['chrome', 'edge', 'firefox', 'brave', 'opera', 'vivaldi'];
@@ -1795,11 +1798,19 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
         processDownloadQueue();
       } else {
         // Enhanced retry logic with exponential backoff
-        if (downloadProcess && downloadProcess.retryCount < 5) { // Increased max retries
+        if (downloadProcess && downloadProcess.retryCount < 5) {
           downloadProcess.retryCount++;
-          const delay = Math.min(30000 * Math.pow(2, downloadProcess.retryCount - 1), 300000); // Max 5 minutes
+          const delay = Math.min(10000 * Math.pow(1.5, downloadProcess.retryCount - 1), 60000);
 
-          console.log(`🔄 Enhanced bypass failed - retry ${downloadProcess.retryCount}/5 in ${delay / 1000}s`);
+          console.log(`🔄 [BYPASS] Retry ${downloadProcess.retryCount}/5 for ${itemId} in ${delay / 1000}s`);
+          
+          broadcastToClients({
+            type: "download_progress",
+            id: itemId,
+            progress: 0,
+            status: "bypassing",
+            message: `Applying anti-block strategy #${downloadProcess.retryCount}...`
+          } as any);
 
           setTimeout(async () => {
             await downloadVideoWithBypass(itemId, downloadProcess.retryCount);
