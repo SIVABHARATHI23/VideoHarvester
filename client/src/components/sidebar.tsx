@@ -235,6 +235,13 @@ export default function AdvancedSidebar() {
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [supportedPlatforms, setSupportedPlatforms] = useState<any>(null);
+  const [cookieStatus, setCookieStatus] = useState<{
+    exists: boolean;
+    source: string;
+    lastUpdated: string | null;
+    stats: { lines: number; hasHSID: boolean; hasSID: boolean };
+  } | null>(null);
+  const [cookieInput, setCookieInput] = useState("");
 
   // Action loading states
   const [actionLoading, setActionLoading] = useState<{ [key: string]: boolean }>({});
@@ -266,7 +273,8 @@ export default function AdvancedSidebar() {
         apiRequest('GET', '/api/settings'),
         apiRequest('GET', '/api/downloads'),
         apiRequest('GET', '/api/status'),
-        apiRequest('GET', '/api/supported-platforms')
+        apiRequest('GET', '/api/supported-platforms'),
+        apiRequest('GET', '/api/cookie-status')
       ]);
 
       if (settingsData.status === 'fulfilled') {
@@ -291,6 +299,14 @@ export default function AdvancedSidebar() {
 
       if (platformsData.status === 'fulfilled') {
         setSupportedPlatforms(platformsData.value);
+      }
+
+      if (statusData.status === 'fulfilled') {
+        // Correctly handle the fifth item which is cookie status
+        const cookieData = (await Promise.allSettled([apiRequest('GET', '/api/cookie-status')]))[0];
+        if (cookieData.status === 'fulfilled') {
+           setCookieStatus(cookieData.value);
+        }
       }
 
     } catch (error: any) {
@@ -410,6 +426,23 @@ export default function AdvancedSidebar() {
     } catch (error) {
       console.log('Folder picker cancelled');
     }
+  };
+
+  const handleCookieUpload = async () => {
+    if (!cookieInput.trim()) {
+      toast({
+        title: "Error",
+        description: "Please paste your cookies first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    handleAction('uploadCookies', async () => {
+      const result = await apiRequest('POST', '/api/upload-cookies', { cookies: cookieInput });
+      setCookieInput("");
+      return result;
+    });
   };
 
   const quickActions = [
@@ -800,12 +833,77 @@ export default function AdvancedSidebar() {
                 <Slider
                   value={[settings.maxRetries || 2]}
                   onValueChange={(value) => handleSettingChange("maxRetries", value[0])}
-                  max={5}
+                  max={10}
                   min={0}
                   step={1}
                   className="w-full"
                   disabled={isLoading}
                 />
+              </div>
+
+              {/* Cookie Management */}
+              <div className="pt-4 border-t border-gray-100 dark:border-white/10">
+                <Label className="text-sm font-medium mb-3 block dark:text-gray-300 flex items-center">
+                  <Database className="w-4 h-4 mr-2 text-blue-600" />
+                  YouTube Cookie Management
+                </Label>
+                
+                {cookieStatus && (
+                  <div className="mb-4 p-3 bg-modern-surface dark:bg-white/5 rounded-lg border dark:border-white/10">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs text-gray-500">Status</span>
+                      <Badge className={cookieStatus.exists ? "bg-green-500" : "bg-red-500"}>
+                        {cookieStatus.exists ? "Active" : "Missing"}
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-gray-500">Session (HSID)</span>
+                        <span className={cookieStatus.stats.hasHSID ? "text-green-600" : "text-red-600 font-bold"}>
+                          {cookieStatus.stats.hasHSID ? "VALID ✅" : "MISSING ❌"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-gray-500">Session (SID)</span>
+                        <span className={cookieStatus.stats.hasSID ? "text-green-600" : "text-red-600 font-bold"}>
+                          {cookieStatus.stats.hasSID ? "VALID ✅" : "MISSING ❌"}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {cookieStatus.exists && (
+                      <div className="mt-2 text-[10px] text-gray-400">
+                        Updated: {new Date(cookieStatus.lastUpdated!).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <textarea
+                    placeholder="Paste cookies.txt content here..."
+                    className="w-full h-24 p-2 text-xs rounded-md bg-white dark:bg-modern-surface border dark:border-white/10 dark:text-white resize-none"
+                    value={cookieInput}
+                    onChange={(e) => setCookieInput(e.target.value)}
+                  />
+                  <Button 
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white" 
+                    size="sm"
+                    onClick={handleCookieUpload}
+                    disabled={actionLoading['uploadCookies']}
+                  >
+                    {actionLoading['uploadCookies'] ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Database className="w-4 h-4 mr-2" />
+                    )}
+                    Upload Fresh Cookies
+                  </Button>
+                  <p className="text-[10px] text-gray-500 italic">
+                    Tip: Use "Get cookies.txt" browser extension to export YouTube cookies.
+                  </p>
+                </div>
               </div>
 
               {/* Download Timeout */}

@@ -255,8 +255,21 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
     '--fragment-retries', '30',
     '--no-warnings',
     '--no-check-certificate',
-    '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    '--user-agent', getRandomUserAgent()
   ];
+
+function getRandomUserAgent() {
+  const agents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (iPad; CPU OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36'
+  ];
+  return agents[Math.floor(Math.random() * agents.length)];
+}
 
   // Handle TRIMMING (Start/End times)
   if ((item.startTime && item.startTime.trim()) || (item.endTime && item.endTime.trim())) {
@@ -3146,6 +3159,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(settings);
     } catch (error) {
       res.status(500).json({ message: "Failed to update settings" });
+    }
+  });
+
+  // NEW: Cookie Management API
+  app.get("/api/cookie-status", async (_req: Request, res: Response) => {
+    try {
+      const rootCookiePath = path.join(process.cwd(), 'cookies.txt');
+      const localCookiePath = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
+      
+      let status = {
+        exists: false,
+        source: 'none',
+        lastUpdated: null as string | null,
+        stats: { lines: 0, hasHSID: false, hasSID: false }
+      };
+
+      const targetPath = existsSync(rootCookiePath) ? rootCookiePath : (existsSync(localCookiePath) ? localCookiePath : null);
+
+      if (targetPath) {
+        const stats = statSync(targetPath);
+        const content = await fs.readFile(targetPath, 'utf-8');
+        status.exists = true;
+        status.source = path.basename(targetPath);
+        status.lastUpdated = stats.mtime.toISOString();
+        status.stats = {
+          lines: (content.match(/\n/g) || []).length,
+          hasHSID: content.includes('HSID'),
+          hasSID: content.includes('SID')
+        };
+      }
+
+      res.json(status);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get cookie status", error: error.message });
+    }
+  });
+
+  app.post("/api/upload-cookies", async (req: Request, res: Response) => {
+    try {
+      const { cookies } = req.body;
+      if (!cookies || typeof cookies !== 'string') {
+        return res.status(400).json({ message: "Invalid cookie content" });
+      }
+
+      const cookiesPath = path.join(process.cwd(), 'cookies.txt');
+      await fs.writeFile(cookiesPath, cookies, 'utf-8');
+      
+      const hasHSID = cookies.includes('HSID');
+      const hasSID = cookies.includes('SID');
+
+      console.log(`🍪 Cookies manually uploaded via API → ${cookiesPath}`);
+      console.log(`📊 Manual Cookie Stats: HSID: ${hasHSID ? '✅' : '❌'}, SID: ${hasSID ? '✅' : '❌'}`);
+
+      res.json({ 
+        success: true, 
+        message: "Cookies uploaded successfully",
+        stats: { hasHSID, hasSID }
+      });
+    } catch (error: any) {
+      console.error('❌ Cookie upload failed:', error);
+      res.status(500).json({ message: "Failed to upload cookies", error: error.message });
     }
   });
 
