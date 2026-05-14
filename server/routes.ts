@@ -372,7 +372,8 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
 
     // Strategy 1: Use mobile/TV clients that have less restrictions
     args.push(
-      '--extractor-args', 'youtube:player_client=ios,android,web',
+      '--extractor-args', 'youtube:player_client=ios,android,tv_embedded',
+      '--extractor-args', 'youtube:player_skip=web,mweb,configs',
 
       // Strategy 4: Geographic and timing obfuscation
       '--geo-bypass',
@@ -1695,29 +1696,29 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
     // Enhanced bypass strategies with more options
     const bypassStrategies = [
       {
-        // Strategy 1: iOS (Strongest currently)
-        client: 'youtube:player_client=ios',
-        description: 'iOS'
+        // Strategy 1: iOS + TV Embedded
+        client: 'youtube:player_client=ios,tv_embedded',
+        description: 'iOS+TV'
       },
       {
-        // Strategy 2: Android
-        client: 'youtube:player_client=android',
-        description: 'Android'
+        // Strategy 2: Android + iOS
+        client: 'youtube:player_client=android,ios',
+        description: 'Android+iOS'
       },
       {
-        // Strategy 3: Web + iOS combination
+        // Strategy 3: TV Embedded (Very strong for some videos)
+        client: 'youtube:player_client=tv_embedded',
+        description: 'TV-Embedded'
+      },
+      {
+        // Strategy 4: Android Creator (Special client)
+        client: 'youtube:player_client=android_creator',
+        description: 'Android-Creator'
+      },
+      {
+        // Strategy 5: Web + iOS combination
         client: 'youtube:player_client=web,ios',
         description: 'Web+iOS'
-      },
-      {
-        // Strategy 4: TV (Android VR)
-        client: 'youtube:player_client=android_vr',
-        description: 'TV'
-      },
-      {
-        // Strategy 5: MWeb (Mobile Web)
-        client: 'youtube:player_client=mweb',
-        description: 'Mobile Web'
       }
     ];
 
@@ -1761,10 +1762,10 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
 
       // Advanced bypass options
       '--geo-bypass',
-      '--geo-bypass-country', retryCount % 2 === 0 ? 'US' : 'GB', // Alternate countries
+      '--geo-bypass-country', retryCount % 2 === 0 ? 'US' : 'GB', 
 
       // Rate limiting and timing
-      '--limit-rate', '500K', // Very slow to avoid detection
+      '--limit-rate', '1M', 
       '--throttled-rate', '100K',
       '--sleep-interval', '5',
       '--max-sleep-interval', '20',
@@ -1773,6 +1774,7 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
       '--no-cache-dir',
       '--force-ipv4',
       '--prefer-insecure',
+      '--extractor-args', 'youtube:player_skip=web,mweb,configs',
 
       // Format selection with fallbacks - Improved MP3 detection
       ...(isMP3Format ? [
@@ -2702,12 +2704,26 @@ async function getYouTubeVideoTitle(url: string): Promise<string> {
 // Write YouTube cookies from base64 env var (set YT_COOKIES_BASE64 in Render dashboard)
 async function initializeCookiesFromEnv(): Promise<void> {
   const cookiesBase64 = process.env.YT_COOKIES_BASE64;
-  if (!cookiesBase64) return;
+  if (!cookiesBase64) {
+    console.log('⚠️ YT_COOKIES_BASE64 not set - YouTube downloads may fail on live server');
+    return;
+  }
   try {
     const cookiesContent = Buffer.from(cookiesBase64, 'base64').toString('utf-8');
     const cookiesPath = path.join(process.cwd(), 'cookies.txt');
     await fs.writeFile(cookiesPath, cookiesContent, 'utf-8');
-    console.log(`🍪 YouTube cookies loaded from YT_COOKIES_BASE64 env var → ${cookiesPath}`);
+    
+    // Validate cookies roughly
+    const cookieCount = (cookiesContent.match(/\n/g) || []).length;
+    const hasHSID = cookiesContent.includes('HSID');
+    const hasSID = cookiesContent.includes('SID');
+    
+    console.log(`🍪 YouTube cookies loaded from YT_COOKIES_BASE64 → ${cookiesPath}`);
+    console.log(`📊 Cookie Stats: ${cookieCount} lines, HSID: ${hasHSID ? '✅' : '❌'}, SID: ${hasSID ? '✅' : '❌'}`);
+    
+    if (!hasHSID || !hasSID) {
+      console.warn('⚠️ Cookies might be missing session data (HSID/SID). Ensure you exported ALL cookies for youtube.com.');
+    }
   } catch (e) {
     console.error('❌ Failed to decode YT_COOKIES_BASE64:', e);
   }
