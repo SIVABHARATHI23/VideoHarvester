@@ -189,74 +189,7 @@ function validateYtDlp(): boolean {
 // COMPLETE SOLUTION for YouTube Blocking Issue
 
 // Fix 1: Enhanced YouTube bypass with multiple strategies
-async function buildDownloadArgs(item: any, outputPath: string): Promise<string[]> {
-  // Get video title from URL if not available - IMPROVED for MP3 naming
-  let videoTitle = item.title;
-  if (!videoTitle || videoTitle === 'Unknown Title') {
-    if (item.url.toLowerCase().includes('youtube.com') || item.url.toLowerCase().includes('youtu.be')) {
-      videoTitle = await getYouTubeVideoTitle(item.url);
-      console.log(`🎯 Extracted YouTube title: ${videoTitle}`);
-    } else if (item.url.toLowerCase().includes('instagram.com')) {
-      videoTitle = await getInstagramVideoTitle(item.url);
-      console.log(`📸 Extracted Instagram title: ${videoTitle}`);
-    } else {
-      videoTitle = extractTitleFromUrl(item.url) || 'Unknown Title';
-      console.log(`🔗 Extracted URL title: ${videoTitle}`);
-    }
-  }
-
-  // Ensure we have a valid title for MP3 downloads
-  if (item.format && item.format.toLowerCase().includes('mp3') && (!videoTitle || videoTitle === 'Unknown Title')) {
-    console.log(`⚠️ MP3 download detected but no title available - attempting forced title extraction`);
-    try {
-      if (item.url.toLowerCase().includes('youtube.com') || item.url.toLowerCase().includes('youtu.be')) {
-        videoTitle = await getYouTubeVideoTitle(item.url);
-      } else if (item.url.toLowerCase().includes('instagram.com')) {
-        videoTitle = await getInstagramVideoTitle(item.url);
-      }
-      console.log(`✅ Forced title extraction result: ${videoTitle}`);
-    } catch (error) {
-      console.log(`❌ Forced title extraction failed: ${error}`);
-      videoTitle = `Audio_${Date.now()}`; // Fallback timestamp-based name
-    }
-  }
-
-  const sanitizedTitle = sanitizeFilename(videoTitle);
-
-  // Check if this is an MP3 download first
-  const isMP3Format = item.format && (
-    item.format.trim().toLowerCase() === 'mp3' ||
-    item.format.toLowerCase() === 'mp3' ||
-    item.format.toLowerCase().includes('mp3') ||
-    item.format.toLowerCase().includes('audio')
-  );
-
-  // Handle CUSTOM FILENAME if provided
-  let finalTitle = sanitizedTitle;
-  if (item.customFilename && item.customFilename.trim().length > 0) {
-    finalTitle = sanitizeFilename(item.customFilename.trim());
-    console.log(`📝 Using custom filename: ${finalTitle}`);
-  }
-
-  // Determine output template based on custom title and format
-  const outputTemplate = isMP3Format
-    ? path.join(outputPath, `${finalTitle}.mp3`)
-    : path.join(outputPath, `${finalTitle}.%(ext)s`);
-
-  console.log(`📝 Full output path: ${outputTemplate}`);
-
-  const args = [
-    '--output', outputTemplate,
-    '--progress',
-    '--newline',
-    '--no-playlist',
-    '--socket-timeout', '300',
-    '--retries', '30',
-    '--fragment-retries', '30',
-    '--no-warnings',
-    '--no-check-certificate',
-    '--user-agent', getRandomUserAgent()
-  ];
+// COMPLETE SOLUTION for YouTube Blocking Issue
 
 function getRandomUserAgent() {
   const agents = [
@@ -271,193 +204,122 @@ function getRandomUserAgent() {
   return agents[Math.floor(Math.random() * agents.length)];
 }
 
-  // Handle TRIMMING (Start/End times)
-  if ((item.startTime && item.startTime.trim()) || (item.endTime && item.endTime.trim())) {
-    const start = item.startTime?.trim() || '0';
-    const end = item.endTime?.trim() || 'inf';
+/**
+ * Automatically finds the best cookie file for a given URL based on its domain.
+ */
+function findCookiesForUrl(url: string): string | null {
+  try {
+    const urlObj = new URL(url);
+    const domain = urlObj.hostname.toLowerCase();
+    const domainParts = domain.split('.');
+    
+    const possibleFiles = [
+      `${domain}_cookies.txt`,
+      `www.${domain}_cookies.txt`,
+      domain.startsWith('www.') ? `${domain.substring(4)}_cookies.txt` : '',
+      domainParts.length > 2 ? `${domainParts.slice(-2).join('.')}_cookies.txt` : '',
+      domainParts.length > 2 ? `www.${domainParts.slice(-2).join('.')}_cookies.txt` : '',
+      'cookies.txt'
+    ].filter(f => f && f.length > 0);
+
+    const dirs = [process.cwd(), path.join(__dirname, '..')];
+
+    for (const dir of dirs) {
+      for (const file of possibleFiles) {
+        const fullPath = path.join(dir, file);
+        if (existsSync(fullPath)) return fullPath;
+      }
+    }
+    return null;
+  } catch (e) { return null; }
+}
+
+async function buildDownloadArgs(item: any, outputPath: string): Promise<string[]> {
+  const isYouTube = item.url.toLowerCase().includes('youtube.com') || item.url.toLowerCase().includes('youtu.be');
+  const isMP3Format = item.format === 'mp3' || item.formatId?.includes('mp3') || (item.format && item.format.toLowerCase().includes('audio'));
+  
+  // Extract title if missing
+  let videoTitle = item.title;
+  if (!videoTitle || videoTitle === 'Unknown Title' || videoTitle === '') {
+    try {
+      if (isYouTube) videoTitle = await getYouTubeVideoTitle(item.url);
+      else if (item.url.toLowerCase().includes('instagram.com')) videoTitle = await getInstagramVideoTitle(item.url);
+      else videoTitle = extractTitleFromUrl(item.url) || 'Video';
+    } catch (e) {
+      videoTitle = extractTitleFromUrl(item.url) || 'Video';
+    }
+  }
+
+  const finalTitle = item.customFilename || videoTitle || 'Video';
+  const sanitizedTitle = sanitizeFilename(String(finalTitle));
+  
+  // Create download location
+  if (!existsSync(outputPath)) {
+    await fs.mkdir(outputPath, { recursive: true });
+  }
+
+  const outputTemplate = isMP3Format
+    ? path.join(outputPath, `${sanitizedTitle}.mp3`)
+    : path.join(outputPath, `${sanitizedTitle}.%(ext)s`);
+
+  const args = [
+    '--output', outputTemplate,
+    '--progress', '--newline', '--no-playlist',
+    '--socket-timeout', '300', '--retries', '30', '--fragment-retries', '30',
+    '--no-warnings', '--no-check-certificate',
+    '--user-agent', getRandomUserAgent()
+  ];
+
+  // Trimming
+  if ((item.startTime && String(item.startTime).trim()) || (item.endTime && String(item.endTime).trim())) {
+    const start = String(item.startTime || '0').trim();
+    const end = String(item.endTime || 'inf').trim();
     args.push('--download-sections', `*${start}-${end}`);
     console.log(`✂️ Trimming: ${start} to ${end}`);
   }
 
-  // Handle SUBTITLES
-  if (item.subtitles) {
-    args.push('--write-subs', '--all-subs', '--embed-subs');
-    console.log(`📜 Enabling subtitles`);
-  }
+  // Subtitles, Thumbnails, Metadata
+  if (item.subtitles) args.push('--write-subs', '--all-subs', '--embed-subs');
+  if (item.saveThumbnail) args.push('--write-thumbnail', '--embed-thumbnail');
+  if (item.metadata !== false) args.push('--embed-metadata', '--add-metadata');
 
-  // Handle THUMBNAIL
-  if (item.saveThumbnail) {
-    args.push('--write-thumbnail', '--embed-thumbnail');
-    console.log(`🖼️ Enabling thumbnail`);
-  }
-
-  // Handle METADATA
-  if (item.metadata !== false) {
-    args.push('--embed-metadata', '--add-metadata');
-    console.log(`🏷️ Enabling metadata`);
-  }
-
-  const isYouTube = item.url.toLowerCase().includes('youtube.com') || item.url.toLowerCase().includes('youtu.be');
-
-  // Handle CODEC SETTINGS if explicitly set
-  let ffmpegArgs = [];
-  if (item.videoCodec && item.videoCodec !== 'h264' && !isMP3Format) {
-    // Note: This is an advanced feature that might require re-encoding if not natively supported by the source
-    console.log(`🎬 Video codec override: ${item.videoCodec}`);
-    // If we want a specific codec, we might need to tell ffmpeg to use it
-    // For simplicity, we'll copy if default, otherwise re-encode via postprocessor
-    if (item.videoCodec === 'h265') ffmpegArgs.push('-c:v libx265');
-    else if (item.videoCodec === 'vp9') ffmpegArgs.push('-c:v libvpx-vp9');
-    else if (item.videoCodec === 'av1') ffmpegArgs.push('-c:v libaom-av1');
-  }
-
-  if (item.audioCodec && item.audioCodec !== 'mp3' && isMP3Format) {
-    console.log(`🎵 Audio codec override: ${item.audioCodec}`);
-    if (item.audioCodec === 'aac') ffmpegArgs.push('-c:a aac');
-    else if (item.audioCodec === 'flac') ffmpegArgs.push('-c:a flac');
-    else if (item.audioCodec === 'opus') ffmpegArgs.push('-c:a libopus');
-  }
-
-  if (ffmpegArgs.length > 0) {
-    args.push('--postprocessor-args', `ffmpeg:${ffmpegArgs.join(' ')}`);
+  // Cookies
+  const cookieFile = findCookiesForUrl(item.url);
+  if (cookieFile) {
+    args.push('--cookies', cookieFile);
+    console.log(`🍪 Automatically using cookies for ${item.platform || 'Platform'}: ${path.basename(cookieFile)}`);
   }
 
   if (isMP3Format) {
     console.log(`🎵 Configuring for audio extraction`);
-    args.push(
-      '--extract-audio',
-      '--audio-format', item.audioCodec || 'mp3',
-      '--audio-quality', '0',
-      '--format', 'bestaudio[ext=m4a]/bestaudio/best',
-      '--no-video'
-    );
-
-    // Add YouTube bypass measures for MP3 downloads too
+    args.push('--extract-audio', '--audio-format', item.audioCodec || 'mp3', '--audio-quality', '0', '--no-video');
     if (isYouTube) {
-      args.push(
-        '--extractor-args', 'youtube:player_client=ios,android,tv_embedded',
-        '--extractor-args', 'youtube:player_skip=web,mweb,configs',
-        '--geo-bypass',
-        '--geo-bypass-country', 'US',
-        '--limit-rate', '2M',
-        '--throttled-rate', '100K',
-        '--no-check-certificate',
-        '--prefer-insecure'
-      );
-
-      // Add cookies if available
-      const mp3CookiePath = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
-      const mp3RootCookie = path.join(process.cwd(), 'cookies.txt');
-      const isDesktop = (process.platform === 'win32' || process.platform === 'darwin') && !process.env.RENDER && !process.env.RAILWAY_ENVIRONMENT;
-
-      if (existsSync(mp3RootCookie)) {
-        args.push('--cookies', mp3RootCookie);
-        console.log(`🍪 Using root cookies.txt for MP3 bypass`);
-      } else if (existsSync(mp3CookiePath)) {
-        args.push('--cookies', mp3CookiePath);
-        console.log(`🍪 Using local www.youtube.com_cookies.txt for MP3 bypass`);
-      } else if (isDesktop) {
-        // Only try browser cookies on local desktop machines
-        const possibleCookiePaths = [
-          path.join(os.homedir(), 'AppData', 'Local', 'Google', 'Chrome', 'User Data', 'Default', 'Cookies'),
-          path.join(os.homedir(), '.config', 'google-chrome', 'Default', 'Cookies'),
-        ];
-        for (const cookieFile of possibleCookiePaths) {
-          if (existsSync(cookieFile)) {
-            args.push('--cookies-from-browser', 'chrome');
-            console.log(`🍪 Using Chrome cookies for MP3 download`);
-            break;
-          }
-        }
-      } else {
-        console.log(`⚠️ No cookies available on live server - download may fail. Add cookies.txt to project root.`);
-      }
+      args.push('--extractor-args', 'youtube:player_client=ios,android,tv_embedded', '--extractor-args', 'youtube:player_skip=web,mweb,configs');
     }
-
-    args.push(item.url);
-    console.log(`🔍 DEBUG: MP3 args built: ${args.join(' ')}`);
-    return args;
-  }
-
-  if (isYouTube) {
+  } else if (isYouTube) {
     console.log(`🎥 YouTube URL detected - Applying ANTI-BLOCK measures`);
-
-    // CRITICAL: Multiple bypass strategies
-
-    // Strategy 1: Use mobile/TV clients that have less restrictions
-    args.push(
-      '--extractor-args', 'youtube:player_client=ios,android,tv_embedded',
-      '--extractor-args', 'youtube:player_skip=web,mweb,configs',
-
-      // Strategy 4: Geographic and timing obfuscation
-      '--geo-bypass',
-      '--geo-bypass-country', 'US',
-
-      // Strategy 5: Connection limits to avoid rate limiting
-      '--limit-rate', '2M', // Limit download speed to avoid detection
-      '--throttled-rate', '100K', // Fallback rate if throttled
-
-      // Strategy 6: Certificate and SSL handling
-      '--no-check-certificate',
-      '--prefer-insecure'
-    );
-
-    // Add cookies if available (CRITICAL for bypassing restrictions)
-    const cookiePath = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
-    const rootCookiePath = path.join(process.cwd(), 'cookies.txt');
-    const isDesktopEnv = (process.platform === 'win32' || process.platform === 'darwin') && !process.env.RENDER && !process.env.RAILWAY_ENVIRONMENT;
-
-    if (existsSync(rootCookiePath)) {
-      args.push('--cookies', rootCookiePath);
-      console.log(`🍪 Using root cookies.txt for bypass`);
-    } else if (await fs.access(cookiePath).then(() => true).catch(() => false)) {
-      args.push('--cookies', cookiePath);
-      console.log(`🍪 Using YouTube cookies for bypass`);
-    } else if (isDesktopEnv) {
-      // Direct browser cookie usage as last resort
-      const browsers = ['chrome', 'edge', 'firefox', 'brave'];
-      for (const browser of browsers) {
-        args.push('--cookies-from-browser', browser);
-        console.log(`🍪 Adding ${browser} cookies-from-browser fallback`);
-        break; // Just use the first one
-      }
-    } else {
-      console.log(`⚠️ No cookies available. Downloads may be blocked.`);
-    }
-
-    const requestedHeight = getHeightFromQuality(item.quality);
+    args.push('--extractor-args', 'youtube:player_client=ios,android,tv_embedded', '--extractor-args', 'youtube:player_skip=web,mweb,configs');
+    args.push('--geo-bypass', '--geo-bypass-country', 'US');
+    
+    const height = getHeightFromQuality(item.quality);
     if (item.quality === 'best') {
       args.push('--format', 'bestvideo+bestaudio/best');
-      console.log(`🎯 Best quality requested`);
-    } else if (item.formatId && item.formatId !== 'best') {
-      args.push('--format', `${item.formatId}+bestaudio/bestvideo[height<=${requestedHeight}]+bestaudio/best[height<=${requestedHeight}]/best`);
-      console.log(`🎯 Specific format requested: ${item.formatId}`);
     } else {
-      args.push('--format', `bestvideo[height<=${requestedHeight}]+bestaudio/best[height<=${requestedHeight}]/best`);
-      console.log(`🎯 Specific quality requested: up to ${requestedHeight}p`);
+      args.push('--format', `bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best`);
     }
-
-    args.push(
-      '--merge-output-format', 'mp4',
-      '--postprocessor-args', 'ffmpeg:-avoid_negative_ts make_zero -fflags +genpts',
-      '--audio-quality', '0'
-    );
+    args.push('--merge-output-format', 'mp4');
   } else {
-    const requestedHeight = getHeightFromQuality(item.quality);
+    const height = getHeightFromQuality(item.quality);
     if (item.quality === 'best') {
-      args.push('--format', `best[ext=mp4]/best`);
-    } else if (item.formatId && item.formatId !== 'best') {
-      args.push('--format', `${item.formatId}+bestaudio/best[height<=${requestedHeight}][ext=mp4]/best`);
+       args.push('--format', 'best[ext=mp4]/best');
     } else {
-      args.push('--format', `bestvideo[height<=${requestedHeight}][ext=mp4]+bestaudio/best[height<=${requestedHeight}][ext=mp4]/best[ext=mp4]/best`);
+       args.push('--format', `bestvideo[height<=${height}][ext=mp4]+bestaudio/best[height<=${height}][ext=mp4]/best[ext=mp4]/best`);
     }
     args.push('--embed-metadata', '--add-metadata');
   }
 
-  if (process.env.HTTP_PROXY) {
-    args.push('--proxy', process.env.HTTP_PROXY);
-  }
-
+  if (process.env.HTTP_PROXY) args.push('--proxy', process.env.HTTP_PROXY);
+  
   args.push(item.url);
   return args;
 }
@@ -720,11 +582,10 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
   // On live servers, we try to use yt-dlp first if we have cookies, 
   // as it provides more accurate quality/metadata than OEmbed.
   const isLiveServer = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_STATIC_URL);
-  const cookiesAvailable = existsSync(path.join(process.cwd(), 'cookies.txt')) || 
-                           existsSync(path.join(__dirname, '..', 'www.youtube.com_cookies.txt'));
+  const cookieFile = findCookiesForUrl(url);
 
   // Only skip if we are on live server AND no cookies AND we have oembed fallback
-  if (isYouTube && isLiveServer && !cookiesAvailable && oembedFallback) {
+  if (isYouTube && isLiveServer && !cookieFile && oembedFallback) {
     console.log(`🌐 Live server without cookies - skipping yt-dlp to avoid blocking, using OEmbed fallback`);
     return buildYouTubeFallbackInfo(oembedFallback);
   }
@@ -771,15 +632,10 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
       );
 
       // Use cookies if available
-      const localCookieFile = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
-      const rootCookieFile = path.join(process.cwd(), 'cookies.txt');
-
-      if (existsSync(rootCookieFile)) {
-        args.push('--cookies', rootCookieFile);
-        console.log(`🍪 Using cookies (root): ${rootCookieFile}`);
-      } else if (existsSync(localCookieFile)) {
-        args.push('--cookies', localCookieFile);
-        console.log(`🍪 Using cookies (local): ${localCookieFile}`);
+      const cookieFile = findCookiesForUrl(url);
+      if (cookieFile) {
+        args.push('--cookies', cookieFile);
+        console.log(`🍪 Using detected cookies: ${path.basename(cookieFile)}`);
       }
     }
 
@@ -2300,74 +2156,89 @@ async function createDownloadDirectory(downloadPath: string): Promise<string> {
 
 async function findDownloadedFile(downloadPath: string, itemId: number, item: DownloadItem): Promise<string | null> {
   try {
-    console.log(`🔍 Searching for downloaded file in: ${downloadPath}`);
-    const files = await fs.readdir(downloadPath);
-    const now = Date.now();
+    console.log(`🔍 [DEBUG] findDownloadedFile for ID ${itemId} in ${downloadPath}`);
+    
+    // First, try a direct match with the expected filename
+    const sanitizedTitle = sanitizeFilename(item.title || "");
+    const isMP3 = item.format === 'mp3' || (item.format && item.format.toLowerCase().includes('audio'));
+    const expectedExt = isMP3 ? '.mp3' : '.mp4';
+    const directPath = path.join(downloadPath, `${sanitizedTitle}${expectedExt}`);
+    
+    if (existsSync(directPath)) {
+      console.log(`✅ [DEBUG] Direct match found: ${directPath}`);
+      return directPath;
+    }
 
+    const files = await fs.readdir(downloadPath);
+    console.log(`🔍 [DEBUG] readdir found ${files.length} files`);
+    
+    const now = Date.now();
     const videoFiles = [];
-    const sanitizedTitle = sanitizeFilename(item.title || "").toLowerCase();
-    const titleParts = sanitizedTitle.split(/[_\s-]+/).filter(p => p.length > 3);
+    const titleLower = (item.title || "").toLowerCase();
+    const titleParts = titleLower.split(/[_\s-|]+/).filter(p => p.length > 3);
 
     for (const file of files) {
       const ext = path.extname(file).toLowerCase();
-      if (['.mp4', '.mp3', '.webm', '.mkv', '.m4v'].includes(ext)) {
-        try {
-          const filePath = path.join(downloadPath, file);
-          const stats = statSync(filePath);
-          const age = now - stats.mtime.getTime();
+      if (!['.mp4', '.mp3', '.webm', '.mkv', '.m4v'].includes(ext)) continue;
 
-          if (stats.size > MIN_FILE_SIZE && age < 1800000) { // 30 minutes
-            // Scoring system for matching
-            let score = 0;
-            const fileNameLower = file.toLowerCase();
-            
-            // Check for title match
-            if (titleParts.length > 0) {
-              const matches = titleParts.filter(part => fileNameLower.includes(part));
-              score += matches.length * 10;
-            }
+      try {
+        const filePath = path.join(downloadPath, file);
+        const stats = statSync(filePath);
+        const age = now - stats.mtime.getTime();
+        const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
 
-            // Direct match boost
-            if (sanitizedTitle && fileNameLower.includes(sanitizedTitle.substring(0, 20))) {
-              score += 50;
-            }
+        // Debug log each potential file
+        console.log(`🔍 [DEBUG] Checking file: ${file}, size: ${sizeMB}MB, age: ${Math.round(age / 1000)}s`);
 
-            // Recency boost (very recent = higher score)
-            if (age < 120000) score += 100; // 2 minutes
-            else if (age < 300000) score += 50; // 5 minutes
-
-            videoFiles.push({
-              file,
-              filePath,
-              mtime: stats.mtime.getTime(),
-              size: stats.size,
-              age,
-              score
-            });
-            console.log(`📄 Found potential file: ${file} (score: ${score}, age: ${Math.round(age / 1000)}s)`);
+        if (stats.size > 10240 && age < 3600000) { // > 10KB and < 1 hour
+          let score = 0;
+          const fileNameLower = file.toLowerCase();
+          
+          // Check for title match
+          if (titleParts.length > 0) {
+            const matches = titleParts.filter(part => fileNameLower.includes(part));
+            score += matches.length * 20;
           }
-        } catch (error) {
-          // Skip
+
+          // Direct title inclusion
+          if (titleLower && fileNameLower.includes(titleLower.substring(0, 15))) {
+            score += 100;
+          }
+
+          // Format match boost
+          if (isMP3 && ext === '.mp3') score += 50;
+          if (!isMP3 && ext === '.mp4') score += 50;
+
+          // Recency boost
+          if (age < 60000) score += 200; // 1 minute
+          else if (age < 300000) score += 100; // 5 minutes
+
+          videoFiles.push({
+            file,
+            filePath,
+            score,
+            age,
+            mtime: stats.mtime.getTime()
+          });
         }
+      } catch (error) {
+        console.log(`⚠️ [DEBUG] Could not stat file ${file}:`, error);
       }
     }
 
     if (videoFiles.length > 0) {
-      // Sort by score first, then by recency
-      videoFiles.sort((a, b) => {
-        if (b.score !== a.score) return b.score - a.score;
-        return b.mtime - a.mtime;
-      });
+      videoFiles.sort((a, b) => b.score - a.score || b.mtime - a.mtime);
       
       const bestMatch = videoFiles[0];
-      // Only pick it if it actually has some score or is VERY recent
-      if (bestMatch.score > 0 || bestMatch.age < 60000) {
-        console.log(`✅ Selected best match file: ${bestMatch.file} (score: ${bestMatch.score})`);
+      if (bestMatch.score > 30 || bestMatch.age < 30000) {
+        console.log(`✅ Selected best match: ${bestMatch.file} (score: ${bestMatch.score})`);
         return bestMatch.filePath;
+      } else {
+        console.log(`⚠️ Best match ${bestMatch.file} score too low (${bestMatch.score})`);
       }
     }
 
-    console.log(`❌ No suitable file found for ${itemId}`);
+    console.log(`❌ No suitable file found in ${downloadPath} for ${item.title}`);
     return null;
   } catch (error) {
     console.error('Error finding downloaded file:', error);

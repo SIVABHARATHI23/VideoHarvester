@@ -1,7 +1,8 @@
-import { Download, ChevronDown, Menu } from "lucide-react";
+import { Download, ChevronDown, Menu, Settings } from "lucide-react";
 import { useState } from "react";
+import { Button } from "./ui/button";
 
-export function AppHeader() {
+export function AppHeader({ onOpenSettings }: { onOpenSettings?: () => void }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -38,10 +39,27 @@ export function AppHeader() {
                 {item}
               </a>
             ))}
+
+            <Button 
+              variant="ghost" 
+              onClick={onOpenSettings}
+              className="bg-white/5 hover:bg-white/10 text-[#1cb8f0] border border-white/10 px-4 h-9 font-black text-xs uppercase tracking-widest flex items-center gap-2 ml-4"
+            >
+              <Settings className="w-4 h-4 animate-spin-slow" />
+              System Matrix
+            </Button>
           </nav>
 
           {/* Mobile menu button */}
-          <div className="lg:hidden flex items-center">
+          <div className="lg:hidden flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={onOpenSettings}
+              className="text-[#1cb8f0] p-2"
+            >
+              <Settings className="w-5 h-5" />
+            </Button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="text-white hover:text-[#1cb8f0] p-2"

@@ -1,11 +1,23 @@
 import { AppHeader } from "@/components/app-header";
 import DownloadForm from "@/components/download-form";
-// DownloadQueue removed as per user request
+import AdvancedSidebar from "@/components/sidebar";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { useState } from "react";
 
 export default function Home() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-white relative">
-      <AppHeader />
+      <AppHeader onOpenSettings={() => setSidebarOpen(true)} />
+
+      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+        <SheetContent side="right" className="w-full sm:w-[400px] p-0 border-l-0">
+          <div className="h-full overflow-y-auto bg-gray-50 dark:bg-modern-background">
+            <AdvancedSidebar />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Hero / Main Download Section with Blue Background */}
       <div className="bg-[#0ba6e0] pt-12 pb-24 px-4 sm:px-6 lg:px-8 shadow-inner text-center">
