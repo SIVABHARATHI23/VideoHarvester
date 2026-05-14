@@ -703,11 +703,15 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
     }
   }
 
-  // On live servers (Render/Railway), yt-dlp always fails due to YouTube blocking datacenter IPs.
-  // If OEmbed already fetched the title successfully, skip yt-dlp and return default formats immediately.
+  // On live servers, we try to use yt-dlp first if we have cookies, 
+  // as it provides more accurate quality/metadata than OEmbed.
   const isLiveServer = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_STATIC_URL);
-  if (isYouTube && isLiveServer && oembedFallback) {
-    console.log(`🌐 Live server detected - skipping yt-dlp, using OEmbed data with default formats`);
+  const cookiesAvailable = existsSync(path.join(process.cwd(), 'cookies.txt')) || 
+                           existsSync(path.join(__dirname, '..', 'www.youtube.com_cookies.txt'));
+
+  // Only skip if we are on live server AND no cookies AND we have oembed fallback
+  if (isYouTube && isLiveServer && !cookiesAvailable && oembedFallback) {
+    console.log(`🌐 Live server without cookies - skipping yt-dlp to avoid blocking, using OEmbed fallback`);
     return buildYouTubeFallbackInfo(oembedFallback);
   }
 
@@ -744,9 +748,10 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
     ];
 
     if (isYouTube) {
-      // EXTREME BYPASS arguments for YouTube - REMOVED web/mweb clients that trigger bot checks
+      // EXTREME BYPASS arguments for YouTube - using most resilient clients
       args.push(
-        '--extractor-args', 'youtube:player_client=android_vr',
+        '--extractor-args', 'youtube:player_client=ios,android,tv_embedded',
+        '--extractor-args', 'youtube:player_skip=web,mweb,configs',
         '--geo-bypass',
         '--no-check-certificate'
       );
@@ -3503,7 +3508,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         '--no-playlist',
         '--socket-timeout', '30',
         '--no-check-certificate',
-        '--extractor-args', 'youtube:player_client=android_vr'
+        '--extractor-args', 'youtube:player_client=ios,android,tv_embedded',
+        '--extractor-args', 'youtube:player_skip=web,mweb,configs'
       ];
 
       // Add cookies if available
