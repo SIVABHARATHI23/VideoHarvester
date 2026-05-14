@@ -322,7 +322,8 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
     // Add YouTube bypass measures for MP3 downloads too
     if (isYouTube) {
       args.push(
-        '--extractor-args', 'youtube:player_client=android_vr',
+        '--extractor-args', 'youtube:player_client=ios,android,tv_embedded',
+        '--extractor-args', 'youtube:player_skip=web,mweb,configs',
         '--geo-bypass',
         '--geo-bypass-country', 'US',
         '--limit-rate', '2M',
@@ -1163,7 +1164,8 @@ async function detectActualVideoQualities(url: string): Promise<string[]> {
       '--no-playlist',
       '--socket-timeout', '30',
       '--no-check-certificate',
-      '--extractor-args', 'youtube:player_client=ios,android,web',
+      '--extractor-args', 'youtube:player_client=ios,android,tv_embedded',
+      '--extractor-args', 'youtube:player_skip=web,mweb,configs',
       '--geo-bypass'
     ];
 
@@ -1243,7 +1245,8 @@ async function tryFallbackStrategy(url: string, resolve: (qualities: string[]) =
 
     const fallbackArgs = [
       '--list-formats',
-      '--extractor-args', 'youtube:player_client=android_vr',
+      '--extractor-args', 'youtube:player_client=ios,android,tv_embedded',
+      '--extractor-args', 'youtube:player_skip=web,mweb,configs',
       url
     ];
 
@@ -2727,7 +2730,8 @@ async function initializeCookiesFromEnv(): Promise<void> {
     console.log(`📊 Cookie Stats: ${cookieCount} lines, HSID: ${hasHSID ? '✅' : '❌'}, SID: ${hasSID ? '✅' : '❌'}`);
     
     if (!hasHSID || !hasSID) {
-      console.warn('⚠️ Cookies might be missing session data (HSID/SID). Ensure you exported ALL cookies for youtube.com.');
+      console.error('CRITICAL: ❌ Cookies are missing session data (HSID/SID). YouTube will block the live server!');
+      console.error('FIX: Export cookies again from a browser where you are logged into YouTube, ensuring ALL domains are included.');
     }
   } catch (e) {
     console.error('❌ Failed to decode YT_COOKIES_BASE64:', e);
