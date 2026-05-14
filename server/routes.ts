@@ -2737,10 +2737,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maxConcurrent: MAX_CONCURRENT_DOWNLOADS,
         version: "5.0.0-ANTI-BLOCK-COMPLETE",
         bypassEnabled: true,
-        cookiesEnabled: existsSync(path.join(__dirname, '..', 'www.youtube.com_cookies.txt'))
+        cookiesEnabled: existsSync(path.join(process.cwd(), 'cookies.txt'))
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to get system status" });
+    }
+  });
+
+  // Cookie status and health check
+  app.get("/api/cookie-status", async (_req: Request, res: Response) => {
+    try {
+      const cookiesPath = path.join(process.cwd(), 'cookies.txt');
+      const exists = existsSync(cookiesPath);
+      let stats = { lines: 0, hasHSID: false, hasSID: false };
+      let lastUpdated = null;
+
+      if (exists) {
+        const content = await fs.readFile(cookiesPath, 'utf-8');
+        stats.lines = (content.match(/\n/g) || []).length;
+        stats.hasHSID = content.includes('HSID');
+        stats.hasSID = content.includes('SID');
+        const fileStats = await fs.stat(cookiesPath);
+        lastUpdated = fileStats.mtime;
+      }
+
+      res.json({
+        exists,
+        source: process.env.YT_COOKIES_BASE64 ? 'Environment' : 'Local File',
+        lastUpdated,
+        stats
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get cookie status" });
+    }
+  });
+
+  // Manual cookie upload via System Matrix
+  app.post("/api/upload-cookies", async (req: Request, res: Response) => {
+    try {
+      const { cookies } = req.body;
+      if (!cookies) return res.status(400).json({ message: "Cookies content is required" });
+
+      const cookiesPath = path.join(process.cwd(), 'cookies.txt');
+      await fs.writeFile(cookiesPath, cookies, 'utf-8');
+      
+      console.log(`✅ Fresh cookies uploaded via System Matrix: ${cookiesPath}`);
+      
+      // Rough validation
+      const hasHSID = cookies.includes('HSID');
+      const hasSID = cookies.includes('SID');
+
+      res.json({ 
+        message: "Cookies uploaded successfully", 
+        stats: { hasHSID, hasSID } 
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to upload cookies" });
+    }
+  });
+
+  // Supported platforms registry
+  app.get("/api/supported-platforms", async (_req: Request, res: Response) => {
+    res.json({
+      total: 10,
+      platforms: [
+        { name: 'YouTube', drmProtected: true },
+        { name: 'Instagram', drmProtected: false },
+        { name: 'TikTok', drmProtected: false },
+        { name: 'Twitter / X', drmProtected: false },
+        { name: 'Hotstar', drmProtected: true },
+        { name: 'Facebook', drmProtected: false },
+        { name: 'Vimeo', drmProtected: false },
+        { name: 'Twitch', drmProtected: false },
+        { name: 'Pinterest', drmProtected: false },
+        { name: 'Generic HTTP', drmProtected: false }
+      ],
+      disclaimer: "Protected content requires valid cookies uploaded via System Matrix."
+    });
+  });
+
+  // Open downloads folder (Local only)
+  app.post("/api/open-folder", async (_req: Request, res: Response) => {
+    try {
+      const isLive = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT);
+      if (isLive) return res.status(403).json({ message: "Cannot open folder on live server" });
+
+      const settings = await storage.getSettings();
+      const downloadPath = await createDownloadDirectory(settings.downloadPath || "Downloads/Videos");
+      
+      const { exec } = require('child_process');
+      const command = process.platform === 'win32' ? `explorer "${downloadPath}"` : 
+                      process.platform === 'darwin' ? `open "${downloadPath}"` : `xdg-open "${downloadPath}"`;
+      
+      exec(command);
+      res.json({ message: "Opening folder..." });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to open folder" });
     }
   });
 
