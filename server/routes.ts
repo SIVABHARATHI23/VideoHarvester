@@ -214,12 +214,12 @@ function findCookiesForUrl(url: string): string | null {
     const domainParts = domain.split('.');
     
     const possibleFiles = [
+      'cookies.txt', // Priority 1: System Matrix uploads
       `${domain}_cookies.txt`,
       `www.${domain}_cookies.txt`,
       domain.startsWith('www.') ? `${domain.substring(4)}_cookies.txt` : '',
       domainParts.length > 2 ? `${domainParts.slice(-2).join('.')}_cookies.txt` : '',
-      domainParts.length > 2 ? `www.${domainParts.slice(-2).join('.')}_cookies.txt` : '',
-      'cookies.txt'
+      domainParts.length > 2 ? `www.${domainParts.slice(-2).join('.')}_cookies.txt` : ''
     ].filter(f => f && f.length > 0);
 
     const dirs = [process.cwd(), path.join(__dirname, '..')];
@@ -3074,8 +3074,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const contentType = ext === '.mp3' ? 'audio/mpeg' :
         ext === '.webm' ? 'video/webm' : 'video/mp4';
 
-      const fileName = (item.title || 'download').replace(/[^a-z0-9]/gi, '_') + ext;
-      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      const safeFileName = (item.title || 'download').replace(/[^a-z0-9]/gi, '_') + ext;
+      const originalFileName = path.basename(filePath);
+      const encodedFileName = encodeURIComponent(originalFileName);
+      
+      // RFC 5987 compliant header for non-ASCII filenames (emojis, etc)
+      res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"; filename*=UTF-8''${encodedFileName}`);
 
       const range = req.headers.range;
 
@@ -3096,7 +3100,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.writeHead(200, {
           'Content-Length': fileSize,
           'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${path.basename(filePath)}"`
+          'Content-Disposition': `attachment; filename="${safeFileName}"; filename*=UTF-8''${encodedFileName}`
         });
         createReadStream(filePath).pipe(res);
       }
