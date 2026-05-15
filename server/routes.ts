@@ -240,6 +240,8 @@ function getYouTubeExtractorArgs(cookieFile: string | null, preferredClient?: st
   }
 
   extraArgs.push('--rm-cache-dir');
+  // Attempt TLS fingerprint impersonation to bypass bot detection
+  extraArgs.push('--impersonate');
   // Removed geo-bypass as it causes bot detection and slows down downloads
   return extraArgs;
 }
@@ -511,8 +513,8 @@ async function updateYtDlp(): Promise<void> {
   try {
     console.log('🔄 Updating yt-dlp to latest version to help with YouTube blocking...');
 
-    // First try normal update
-    const normalUpdate = spawnSync('yt-dlp', ['-U'], {
+    // First try updating to the nightly channel for latest bypasses
+    const normalUpdate = spawnSync('yt-dlp', ['--update-to', 'nightly'], {
       stdio: 'pipe',
       timeout: 120000 // 2 minutes
     });
@@ -523,7 +525,7 @@ async function updateYtDlp(): Promise<void> {
       console.log('⚠️ Normal update failed, trying pip install...');
 
       // Try pip install as fallback
-      const pipUpdate = spawnSync('pip', ['install', '--upgrade', 'yt-dlp'], {
+      const pipUpdate = spawnSync('pip', ['install', '--upgrade', '--pre', 'yt-dlp', 'curl-cffi'], {
         stdio: 'pipe',
         timeout: 180000 // 3 minutes
       });
@@ -2666,7 +2668,10 @@ async function initializeCookiesFromEnv(): Promise<void> {
     return;
   }
   try {
-    const cookiesContent = Buffer.from(cookiesBase64, 'base64').toString('utf-8');
+    let cookiesContent = Buffer.from(cookiesBase64, 'base64').toString('utf-8');
+    if (!cookiesContent.includes('# Netscape HTTP Cookie File')) {
+      cookiesContent = '# Netscape HTTP Cookie File\n' + cookiesContent;
+    }
     const cookiesPath = path.join(process.cwd(), 'cookies.txt');
     await fs.writeFile(cookiesPath, cookiesContent, 'utf-8');
     
