@@ -360,7 +360,8 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
     if (isMP3Format) {
       console.log(`🎵 Configuring for audio extraction`);
       args.push('--extract-audio', '--audio-format', item.audioCodec || 'mp3', '--audio-quality', '0');
-      args.push('--format', 'b/best');
+      // Prioritize legacy formats 18 (360p) and 22 (720p) which often have fewer protections
+      args.push('--format', '18/22/b/best');
     } else {
       const height = getHeightFromQuality(item.quality);
       if (item.quality === 'best') {
@@ -1716,7 +1717,7 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
         '--extract-audio',
         '--audio-format', 'mp3',
         '--audio-quality', '0',
-        '--format', 'b/best',
+        '--format', '18/22/b/best',
         '--output', outputTemplate 
       ] : [
         '--format', getBypassFormat(item.quality || 'best'),
@@ -1799,9 +1800,9 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
         }
       }
 
-      // Check for successful bypass indicators
-      if (output.includes('Downloading') || output.includes('100%') || output.includes('has already been downloaded')) {
-        console.log(`✅ BYPASS successful indicators detected for ${itemId}!`);
+      // Check for successful bypass indicators - more strict to avoid false positives
+      if ((output.includes('Downloading') && !output.includes('Extracting')) || output.includes('100%') || output.includes('has already been downloaded')) {
+        console.log(`✅ BYPASS progress/success detected for ${itemId}`);
       }
 
       // Check for blocking indicators
@@ -1978,7 +1979,7 @@ async function downloadVideoWithFinalBypass(itemId: number): Promise<void> {
         '--extract-audio',
         '--audio-format', 'mp3',
         '--audio-quality', '0',
-        '--format', 'b/best',
+        '--format', '18/22/b/best',
         '--postprocessor-args', `ffmpeg:-b:a ${getAudioBitrate(item.quality)}`,
         '--output', outputTemplate // Force exact output filename for MP3
       ] : [
