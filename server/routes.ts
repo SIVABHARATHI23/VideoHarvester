@@ -1464,7 +1464,9 @@ async function downloadVideo(itemId: number): Promise<void> {
 
       console.log(`🎵 MP3 args validation: extract-audio: ${hasExtractAudio}, audio-format: ${hasAudioFormat}, audio-quality: ${hasAudioQuality}, no-video: ${hasNoVideo}`);
 
-      if (!hasExtractAudio || !hasAudioFormat || !hasNoVideo) {
+      const isYouTube = item.url.toLowerCase().includes('youtube.com') || item.url.toLowerCase().includes('youtu.be');
+      
+      if (!hasExtractAudio || !hasAudioFormat || (!hasNoVideo && !isYouTube)) {
         console.error(`❌ MP3 download configuration error - missing required audio arguments`);
         await storage.updateDownloadItem(itemId, {
           status: "failed",
@@ -1976,9 +1978,8 @@ async function downloadVideoWithFinalBypass(itemId: number): Promise<void> {
         '--extract-audio',
         '--audio-format', 'mp3',
         '--audio-quality', '0',
-        '--format', 'bestaudio[ext=m4a]/bestaudio/best',
+        '--format', 'b/best',
         '--postprocessor-args', `ffmpeg:-b:a ${getAudioBitrate(item.quality)}`,
-        '--no-video', // CRITICAL: Ensure no video is downloaded
         '--output', outputTemplate // Force exact output filename for MP3
       ] : [
         '--format', 'best[height<=1080][ext=mp4]/best[height<=720][ext=mp4]/best[height<=480][ext=mp4]/best[ext=mp4]',
