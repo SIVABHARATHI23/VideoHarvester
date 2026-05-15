@@ -239,6 +239,7 @@ function getYouTubeExtractorArgs(cookieFile: string | null, preferredClient?: st
     }
   }
 
+  extraArgs.push('--rm-cache-dir');
   // Removed geo-bypass as it causes bot detection and slows down downloads
   return extraArgs;
 }
@@ -323,9 +324,12 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
     '--output', outputTemplate,
     '--progress', '--newline', '--no-playlist',
     '--socket-timeout', '60', '--retries', '10', '--fragment-retries', '10',
-    '--no-warnings', '--no-check-certificate',
-    '--user-agent', getRandomUserAgent()
+    '--no-warnings', '--no-check-certificate'
   ];
+
+  if (!isYouTube) {
+    args.push('--user-agent', getRandomUserAgent());
+  }
 
   // Trimming
   if ((item.startTime && String(item.startTime).trim()) || (item.endTime && String(item.endTime).trim())) {
@@ -1700,7 +1704,6 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
       '--no-warnings',
       '--concurrent-fragments', '1',
       '--no-check-certificate',
-      '--user-agent', (strategy as any).ua || getRandomUserAgent(),
       '--sleep-interval', '2',
       '--max-sleep-interval', '10',
       '--no-cache-dir',
@@ -1958,7 +1961,6 @@ async function downloadVideoWithFinalBypass(itemId: number): Promise<void> {
       '--no-warnings',
       '--concurrent-fragments', '1',
       '--no-check-certificate',
-      '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1',
       '--sleep-interval', '5',
       '--max-sleep-interval', '20',
 
