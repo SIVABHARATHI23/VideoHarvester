@@ -239,7 +239,7 @@ function getYouTubeExtractorArgs(cookieFile: string | null, preferredClient?: st
     }
   }
 
-  extraArgs.push('--geo-bypass', '--geo-bypass-country', 'US');
+  // Removed geo-bypass as it causes bot detection and slows down downloads
   return extraArgs;
 }
 // ──────────────────────────────────────────────────────────────────────────────
@@ -322,10 +322,9 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
   const args = [
     '--output', outputTemplate,
     '--progress', '--newline', '--no-playlist',
-    '--socket-timeout', '600', '--retries', '50', '--fragment-retries', '50',
+    '--socket-timeout', '60', '--retries', '10', '--fragment-retries', '10',
     '--no-warnings', '--no-check-certificate',
-    '--user-agent', getRandomUserAgent(),
-    '--geo-bypass'
+    '--user-agent', getRandomUserAgent()
   ];
 
   // Trimming
@@ -1099,8 +1098,7 @@ async function detectActualVideoQualities(url: string): Promise<string[]> {
       '--socket-timeout', '30',
       '--no-check-certificate',
       '--extractor-args', 'youtube:player_client=ios,android,tv_embedded',
-      '--extractor-args', 'youtube:player_skip=web,mweb,configs',
-      '--geo-bypass'
+      '--extractor-args', 'youtube:player_skip=web,mweb,configs'
     ];
 
     // Add cookies if available
@@ -1695,9 +1693,9 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
       '--progress',
       '--newline',
       '--no-playlist',
-      '--socket-timeout', '600', // Much longer timeout for bypass
-      '--retries', '50', // Max retries
-      '--fragment-retries', '50',
+      '--socket-timeout', '60', // Adjusted timeout
+      '--retries', '15', // Max retries
+      '--fragment-retries', '15',
       '--retry-sleep', '10',
       '--no-warnings',
       '--concurrent-fragments', '1',
@@ -1953,9 +1951,9 @@ async function downloadVideoWithFinalBypass(itemId: number): Promise<void> {
       '--progress',
       '--newline',
       '--no-playlist',
-      '--socket-timeout', '900', // 15 minutes timeout
-      '--retries', '100', // Maximum retries
-      '--fragment-retries', '100',
+      '--socket-timeout', '90', // 1.5 minutes timeout
+      '--retries', '20', // Maximum retries
+      '--fragment-retries', '20',
       '--retry-sleep', '15', 
       '--no-warnings',
       '--concurrent-fragments', '1',
@@ -1967,9 +1965,7 @@ async function downloadVideoWithFinalBypass(itemId: number): Promise<void> {
       // Most aggressive bypass techniques
       '--extractor-args', 'youtube:player_client=android_vr',
 
-      // Geographic and network bypass
-      '--geo-bypass',
-      '--geo-bypass-country', 'CA', // Use Canadian IP
+      // Network bypass
       '--force-ipv4',
       '--prefer-insecure',
 
