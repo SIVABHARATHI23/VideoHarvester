@@ -214,10 +214,7 @@ function validateYtDlp(): boolean {
 
 // ─── YouTube PO Token + Cookie bypass helper ──────────────────────────────────
 // The modern way to bypass YouTube bot detection on server IPs (as of 2024-2025).
-// Set YT_PO_TOKEN env var in Render dashboard to enable PO token authentication.
-// Get a PO token from: https://github.com/iv-org/youtube-po-token-generator
-// or extract it from a browser session.
-function getYouTubeExtractorArgs(cookieFile: string | null): string[] {
+function getYouTubeExtractorArgs(cookieFile: string | null, preferredClient?: string): string[] {
   const poToken = process.env.YT_PO_TOKEN;
   const visitorData = process.env.YT_VISITOR_DATA;
 
@@ -230,14 +227,16 @@ function getYouTubeExtractorArgs(cookieFile: string | null): string[] {
     if (visitorData) extractorArg += `;visitor_data=${visitorData}`;
     extractorArg += `;po_token=web+${poToken}`;
     extraArgs.push('--extractor-args', extractorArg);
-  } else if (cookieFile) {
-    // Cookies present - use tv_embedded + ios which works best with cookies
-    console.log('🍪 Using cookies with tv_embedded client bypass');
-    extraArgs.push('--extractor-args', 'youtube:player_client=tv_embedded,ios', '--extractor-args', 'youtube:player_skip=web,mweb,configs');
   } else {
-    // No cookies, no token - best effort with public clients
-    console.log('⚠️ No PO token or cookies - using best-effort bypass (may fail on datacenter IPs)');
-    extraArgs.push('--extractor-args', 'youtube:player_client=ios,tv_embedded', '--extractor-args', 'youtube:player_skip=web,mweb,configs');
+    // If no PO token, use the preferred client or fall back to high-success ones
+    const client = preferredClient || (cookieFile ? 'tv_embedded,ios' : 'ios,tv_embedded');
+    console.log(`🛡️ Using YouTube client bypass: ${client}`);
+    extraArgs.push('--extractor-args', `youtube:player_client=${client}`);
+    
+    // Skip web/mweb as they are most likely to trigger bot detection on server IPs
+    if (!client.includes('web')) {
+      extraArgs.push('--extractor-args', 'youtube:player_skip=web,mweb,configs');
+    }
   }
 
   extraArgs.push('--geo-bypass', '--geo-bypass-country', 'US');
@@ -645,14 +644,13 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
     }
   }
 
-  // On live servers, we try to use yt-dlp first if we have cookies, 
-  // as it provides more accurate quality/metadata than OEmbed.
+  // On live servers, we prioritize speed for the initial link parsing.
+  // yt-dlp is very slow on datacenter IPs and often takes 15-20 seconds to fail.
+  // If we have OEmbed data, we return it immediately on live servers.
   const isLiveServer = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_STATIC_URL);
-  const cookieFile = findCookiesForUrl(url);
-
-  // Only skip if we are on live server AND no cookies AND we have oembed fallback
-  if (isYouTube && isLiveServer && !cookieFile && oembedFallback) {
-    console.log(`🌐 Live server without cookies - skipping yt-dlp to avoid blocking, using OEmbed fallback`);
+  
+  if (isYouTube && isLiveServer && oembedFallback) {
+    console.log(`🌐 Live server - prioritizing speed, using instant OEmbed metadata`);
     return buildYouTubeFallbackInfo(oembedFallback);
   }
 
@@ -1643,32 +1641,33 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
     const bypassStrategies = [
       {
         // Strategy 1: iOS (Standalone)
-        client: 'youtube:player_client=ios',
+        client: 'ios',
         description: 'iOS-Standalone',
-        ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1'
+        ua: 'com.google.ios.youtube/19.08.2 (iPhone16,2; U; CPU iOS 17_3_1 like Mac OS X; en_US)'
       },
       {
-        // Strategy 2: TV Embedded (Standalone)
-        client: 'youtube:player_client=tv_embedded',
-        description: 'TV-Embedded',
-        ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-      },
-      {
-        // Strategy 3: Android (Standalone)
-        client: 'youtube:player_client=android',
+        // Strategy 2: Android (Standalone)
+        client: 'android',
         description: 'Android-Standalone',
-        ua: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36'
+        ua: 'com.google.android.youtube/19.08.35 (Linux; U; Android 14; en_US; Pixel 8 Pro; Build/UQ1A.240205.004)'
       },
       {
-        // Strategy 4: iOS + TV Embedded
-        client: 'youtube:player_client=ios,tv_embedded',
-        description: 'iOS+TV'
+        // Strategy 3: TV Embedded (Standalone)
+        client: 'tv_embedded',
+        description: 'TV-Embedded',
+        ua: 'Mozilla/5.0 (Chromecast; Google TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
       },
       {
-        // Strategy 5: Mobile Web
-        client: 'youtube:player_client=mweb',
-        description: 'Mobile-Web',
-        ua: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36'
+        // Strategy 4: Android VR
+        client: 'android_vr',
+        description: 'Android-VR',
+        ua: 'Mozilla/5.0 (Linux; Android 10; Quest 2) AppleWebKit/537.36 (KHTML, like Gecko) OculusBrowser/15.0.0.0.0 SamsungBrowser/4.0 Chrome/89.0.4389.90 Mobile Safari/537.36'
+      },
+      {
+        // Strategy 5: iOS + TV Embedded
+        client: 'ios,tv_embedded',
+        description: 'iOS+TV',
+        ua: 'com.google.ios.youtube/19.08.2 (iPhone16,2; U; CPU iOS 17_3_1 like Mac OS X; en_US)'
       }
     ];
 
@@ -1752,7 +1751,7 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
     }
 
     // Use PO token / centralized bypass (overrides strategy client when PO token present)
-    const ytArgs = getYouTubeExtractorArgs(usedCookiePath);
+    const ytArgs = getYouTubeExtractorArgs(usedCookiePath, strategy.client);
     args.push(...ytArgs);
 
     // Add proxy support if available
