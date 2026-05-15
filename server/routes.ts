@@ -212,10 +212,39 @@ function validateYtDlp(): boolean {
   }
 }
 
-// COMPLETE SOLUTION for YouTube Blocking Issue
+// ─── YouTube PO Token + Cookie bypass helper ──────────────────────────────────
+// The modern way to bypass YouTube bot detection on server IPs (as of 2024-2025).
+// Set YT_PO_TOKEN env var in Render dashboard to enable PO token authentication.
+// Get a PO token from: https://github.com/iv-org/youtube-po-token-generator
+// or extract it from a browser session.
+function getYouTubeExtractorArgs(cookieFile: string | null): string[] {
+  const poToken = process.env.YT_PO_TOKEN;
+  const visitorData = process.env.YT_VISITOR_DATA;
 
-// Fix 1: Enhanced YouTube bypass with multiple strategies
-// COMPLETE SOLUTION for YouTube Blocking Issue
+  const extraArgs: string[] = [];
+
+  if (poToken) {
+    console.log('🔑 Using PO Token for YouTube bypass (most reliable method)');
+    // With PO token, use web client which works best with tokens
+    let extractorArg = `youtube:player_client=web`;
+    if (visitorData) extractorArg += `;visitor_data=${visitorData}`;
+    extractorArg += `;po_token=web+${poToken}`;
+    extraArgs.push('--extractor-args', extractorArg);
+  } else if (cookieFile) {
+    // Cookies present - use tv_embedded + ios which works best with cookies
+    console.log('🍪 Using cookies with tv_embedded client bypass');
+    extraArgs.push('--extractor-args', 'youtube:player_client=tv_embedded,ios', '--extractor-args', 'youtube:player_skip=web,mweb,configs');
+  } else {
+    // No cookies, no token - best effort with public clients
+    console.log('⚠️ No PO token or cookies - using best-effort bypass (may fail on datacenter IPs)');
+    extraArgs.push('--extractor-args', 'youtube:player_client=ios,tv_embedded', '--extractor-args', 'youtube:player_skip=web,mweb,configs');
+  }
+
+  extraArgs.push('--geo-bypass', '--geo-bypass-country', 'US');
+  return extraArgs;
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 
 function getRandomUserAgent() {
   const agents = [
@@ -322,9 +351,9 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
 
   if (isYouTube) {
     console.log(`🎥 YouTube URL detected - Applying ANTI-BLOCK measures`);
-    // Use most reliable clients for YouTube
-    args.push('--extractor-args', 'youtube:player_client=ios,tv_embedded', '--extractor-args', 'youtube:player_skip=web,mweb,configs');
-    args.push('--geo-bypass-country', 'US');
+    // Centralized bypass: PO token > cookies > best-effort
+    const ytArgs = getYouTubeExtractorArgs(cookieFile);
+    args.push(...ytArgs);
 
     if (isMP3Format) {
       console.log(`🎵 Configuring for audio extraction`);
@@ -663,21 +692,16 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
       // Clean URL to avoid playlist bot-detection triggers
       const targetUrl = cleanYouTubeUrl(url);
       
-      // EXTREME BYPASS arguments for YouTube - using most resilient clients
-      args.push(
-        '--extractor-args', 'youtube:player_client=ios,tv_embedded',
-        '--extractor-args', 'youtube:player_skip=web,mweb,configs',
-        '--geo-bypass',
-        '--geo-bypass-country', 'US',
-        '--no-check-certificate'
-      );
-
       // Use cookies if available
       const cookieFile = findCookiesForUrl(targetUrl);
       if (cookieFile) {
         args.push('--cookies', cookieFile);
         console.log(`🍪 Using detected cookies: ${path.basename(cookieFile)}`);
       }
+
+      // Use centralized bypass: PO token > cookies > best-effort
+      const ytArgs = getYouTubeExtractorArgs(cookieFile);
+      args.push(...ytArgs);
       
       args.push(targetUrl);
     } else {
@@ -1675,45 +1699,28 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
       '--socket-timeout', '600', // Much longer timeout for bypass
       '--retries', '50', // Max retries
       '--fragment-retries', '50',
-      '--retry-sleep', '10', // Sleep between retries
+      '--retry-sleep', '10',
       '--no-warnings',
-      '--concurrent-fragments', '1', // Single fragment to avoid detection
+      '--concurrent-fragments', '1',
       '--no-check-certificate',
       '--user-agent', (strategy as any).ua || getRandomUserAgent(),
       '--sleep-interval', '2',
       '--max-sleep-interval', '10',
-
-      // Enhanced bypass techniques
-      '--extractor-args', strategy.client,
-
-      // Advanced bypass options
-      '--geo-bypass',
-      '--geo-bypass-country', retryCount % 2 === 0 ? 'US' : 'GB', 
-
-      // Timing
-      '--sleep-interval', '5',
-      '--max-sleep-interval', '20',
-
-      // Additional bypass techniques
       '--no-cache-dir',
       '--force-ipv4',
-      '--prefer-insecure',
-      '--extractor-args', 'youtube:player_skip=web,mweb,configs',
 
-      // Format selection with fallbacks - Improved MP3 detection
+      // Format selection
       ...(isMP3Format ? [
         '--extract-audio',
         '--audio-format', 'mp3',
         '--audio-quality', '0',
-        '--format', 'bestaudio/best', // More flexible audio selection
+        '--format', 'bestaudio/best',
         '--output', outputTemplate 
       ] : [
         '--format', getBypassFormat(item.quality || 'best'),
         '--merge-output-format', 'mp4',
         '--postprocessor-args', 'ffmpeg:-avoid_negative_ts make_zero -fflags +genpts -map_metadata 0 -map_chapters 0' 
       ]),
-
-      // CRITICAL: Ensure proper merging and output format (only for video, not MP3)
       ...(isMP3Format ? [] : [
         '--merge-output-format', 'mp4',
         '--postprocessor-args', 'ffmpeg:-avoid_negative_ts make_zero -fflags +genpts -map_metadata 0 -map_chapters 0' 
@@ -1722,25 +1729,31 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
       '--add-metadata',
     ];
 
-    // Enhanced cookie handling
+    // Cookie + PO Token handling (centralized)
     const rootCookiePath = path.join(process.cwd(), 'cookies.txt');
     const localCookiePath = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
     
-    // Force cookie refresh on retry
-    console.log(`🍪 Attempting FRESH cookie extraction for bypass retry...`);
-    const extractionSuccess = await extractYouTubeCookies(true);
-    
-    if (extractionSuccess) {
-      args.push('--cookies', localCookiePath);
-      console.log(`✅ Successfully extracted fresh cookies`);
-    } else {
-      console.log(`⚠️ Fresh cookie extraction failed. Using existing cookies if available.`);
-      if (existsSync(rootCookiePath)) {
-        args.push('--cookies', rootCookiePath);
-      } else if (existsSync(localCookiePath)) {
-        args.push('--cookies', localCookiePath);
-      }
+    // On live server, skip browser extraction (no browser available)
+    const isLive = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT);
+    if (!isLive) {
+      console.log(`🍪 Attempting FRESH cookie extraction for bypass retry...`);
+      await extractYouTubeCookies(true);
     }
+    
+    let usedCookiePath: string | null = null;
+    if (existsSync(rootCookiePath)) {
+      args.push('--cookies', rootCookiePath);
+      usedCookiePath = rootCookiePath;
+      console.log(`🍪 Using cookies: cookies.txt`);
+    } else if (existsSync(localCookiePath)) {
+      args.push('--cookies', localCookiePath);
+      usedCookiePath = localCookiePath;
+      console.log(`🍪 Using cookies: www.youtube.com_cookies.txt`);
+    }
+
+    // Use PO token / centralized bypass (overrides strategy client when PO token present)
+    const ytArgs = getYouTubeExtractorArgs(usedCookiePath);
+    args.push(...ytArgs);
 
     // Add proxy support if available
     if (process.env.HTTP_PROXY) {
