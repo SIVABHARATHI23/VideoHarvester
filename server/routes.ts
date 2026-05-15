@@ -1618,29 +1618,33 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
     // Enhanced bypass strategies with more options
     const bypassStrategies = [
       {
-        // Strategy 1: iOS + TV Embedded
+        // Strategy 1: iOS (Standalone)
+        client: 'youtube:player_client=ios',
+        description: 'iOS-Standalone',
+        ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1'
+      },
+      {
+        // Strategy 2: TV Embedded (Standalone)
+        client: 'youtube:player_client=tv_embedded',
+        description: 'TV-Embedded',
+        ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+      },
+      {
+        // Strategy 3: Android (Standalone)
+        client: 'youtube:player_client=android',
+        description: 'Android-Standalone',
+        ua: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36'
+      },
+      {
+        // Strategy 4: iOS + TV Embedded
         client: 'youtube:player_client=ios,tv_embedded',
         description: 'iOS+TV'
       },
       {
-        // Strategy 2: Android + iOS
-        client: 'youtube:player_client=android,ios',
-        description: 'Android+iOS'
-      },
-      {
-        // Strategy 3: TV Embedded (Very strong for some videos)
-        client: 'youtube:player_client=tv_embedded',
-        description: 'TV-Embedded'
-      },
-      {
-        // Strategy 4: Android Creator (Special client)
-        client: 'youtube:player_client=android_creator',
-        description: 'Android-Creator'
-      },
-      {
-        // Strategy 5: Web + iOS combination
-        client: 'youtube:player_client=web,ios',
-        description: 'Web+iOS'
+        // Strategy 5: Mobile Web
+        client: 'youtube:player_client=mweb',
+        description: 'Mobile-Web',
+        ua: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36'
       }
     ];
 
@@ -1669,15 +1673,15 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
       '--newline',
       '--no-playlist',
       '--socket-timeout', '600', // Much longer timeout for bypass
-      '--retries', '30', // More retries
-      '--fragment-retries', '30',
-      '--retry-sleep', '15', // Longer sleep between retries
+      '--retries', '50', // Max retries
+      '--fragment-retries', '50',
+      '--retry-sleep', '10', // Sleep between retries
       '--no-warnings',
       '--concurrent-fragments', '1', // Single fragment to avoid detection
       '--no-check-certificate',
-      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      '--sleep-interval', '3',
-      '--max-sleep-interval', '15',
+      '--user-agent', (strategy as any).ua || getRandomUserAgent(),
+      '--sleep-interval', '2',
+      '--max-sleep-interval', '10',
 
       // Enhanced bypass techniques
       '--extractor-args', strategy.client,
@@ -1938,14 +1942,15 @@ async function downloadVideoWithFinalBypass(itemId: number): Promise<void> {
       '--newline',
       '--no-playlist',
       '--socket-timeout', '900', // 15 minutes timeout
-      '--retries', '50', // Maximum retries
-      '--fragment-retries', '50',
-      '--retry-sleep', '30', // Very long sleep
+      '--retries', '100', // Maximum retries
+      '--fragment-retries', '100',
+      '--retry-sleep', '15', 
       '--no-warnings',
       '--concurrent-fragments', '1',
       '--no-check-certificate',
-      '--sleep-interval', '10',
-      '--max-sleep-interval', '60',
+      '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1',
+      '--sleep-interval', '5',
+      '--max-sleep-interval', '20',
 
       // Most aggressive bypass techniques
       '--extractor-args', 'youtube:player_client=android_vr',
