@@ -359,8 +359,8 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
 
     if (isMP3Format) {
       console.log(`🎵 Configuring for audio extraction`);
-      args.push('--extract-audio', '--audio-format', item.audioCodec || 'mp3', '--audio-quality', '0', '--no-video');
-      args.push('--format', 'bestaudio/best');
+      args.push('--extract-audio', '--audio-format', item.audioCodec || 'mp3', '--audio-quality', '0');
+      args.push('--format', 'b/best');
     } else {
       const height = getHeightFromQuality(item.quality);
       if (item.quality === 'best') {
