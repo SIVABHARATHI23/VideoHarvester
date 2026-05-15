@@ -18,6 +18,10 @@ build/
 # Cookies and sensitive files
 *.cookies.txt
 cookies.txt
+cookies*.txt
+*cookies*.txt
+*_cookies*.txt
+*_base64.txt
 hotstar_cookies.txt
 www.hotstar.com_cookies.txt
 www.instagram.com_cookies.txt
