@@ -129,6 +129,32 @@ function detectPlatform(url: string): string {
   return 'Unknown';
 }
 
+/**
+ * Strips playlist and other tracking parameters from YouTube URLs
+ * to reduce bot detection and avoid playlist downloads.
+ */
+function cleanYouTubeUrl(url: string): string {
+  try {
+    if (!url.includes('youtube.com') && !url.includes('youtu.be')) return url;
+    
+    const urlObj = new URL(url);
+    if (urlObj.hostname.includes('youtube.com') && urlObj.pathname === '/watch') {
+      const v = urlObj.searchParams.get('v');
+      if (v) {
+        return `https://www.youtube.com/watch?v=${v}`;
+      }
+    } else if (urlObj.hostname.includes('youtu.be')) {
+      const v = urlObj.pathname.slice(1);
+      if (v) {
+        return `https://www.youtube.com/watch?v=${v}`;
+      }
+    }
+    return url;
+  } catch (e) {
+    return url;
+  }
+}
+
 function extractTitleFromUrl(url: string): string | null {
   try {
     const urlObj = new URL(url);
@@ -238,11 +264,14 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
   const isYouTube = item.url.toLowerCase().includes('youtube.com') || item.url.toLowerCase().includes('youtu.be');
   const isMP3Format = item.format === 'mp3' || item.formatId?.includes('mp3') || (item.format && item.format.toLowerCase().includes('audio'));
   
+  // Clean URL for YouTube to avoid playlist issues
+  const targetUrl = isYouTube ? cleanYouTubeUrl(item.url) : item.url;
+
   // Extract title if missing
   let videoTitle = item.title;
   if (!videoTitle || videoTitle === 'Unknown Title' || videoTitle === '') {
     try {
-      if (isYouTube) videoTitle = await getYouTubeVideoTitle(item.url);
+      if (isYouTube) videoTitle = await getYouTubeVideoTitle(targetUrl);
       else if (item.url.toLowerCase().includes('instagram.com')) videoTitle = await getInstagramVideoTitle(item.url);
       else videoTitle = extractTitleFromUrl(item.url) || 'Video';
     } catch (e) {
@@ -265,9 +294,10 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
   const args = [
     '--output', outputTemplate,
     '--progress', '--newline', '--no-playlist',
-    '--socket-timeout', '300', '--retries', '30', '--fragment-retries', '30',
+    '--socket-timeout', '600', '--retries', '50', '--fragment-retries', '50',
     '--no-warnings', '--no-check-certificate',
-    '--user-agent', getRandomUserAgent()
+    '--user-agent', getRandomUserAgent(),
+    '--geo-bypass'
   ];
 
   // Trimming
@@ -284,30 +314,34 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
   if (item.metadata !== false) args.push('--embed-metadata', '--add-metadata');
 
   // Cookies
-  const cookieFile = findCookiesForUrl(item.url);
+  const cookieFile = findCookiesForUrl(targetUrl);
   if (cookieFile) {
     args.push('--cookies', cookieFile);
     console.log(`🍪 Automatically using cookies for ${item.platform || 'Platform'}: ${path.basename(cookieFile)}`);
   }
 
-  if (isMP3Format) {
-    console.log(`🎵 Configuring for audio extraction`);
-    args.push('--extract-audio', '--audio-format', item.audioCodec || 'mp3', '--audio-quality', '0', '--no-video');
-    if (isYouTube) {
-      args.push('--extractor-args', 'youtube:player_client=ios,android,tv_embedded', '--extractor-args', 'youtube:player_skip=web,mweb,configs');
-    }
-  } else if (isYouTube) {
+  if (isYouTube) {
     console.log(`🎥 YouTube URL detected - Applying ANTI-BLOCK measures`);
-    args.push('--extractor-args', 'youtube:player_client=ios,android,tv_embedded', '--extractor-args', 'youtube:player_skip=web,mweb,configs');
-    args.push('--geo-bypass', '--geo-bypass-country', 'US');
-    
-    const height = getHeightFromQuality(item.quality);
-    if (item.quality === 'best') {
-      args.push('--format', 'bestvideo+bestaudio/best');
+    // Use most reliable clients for YouTube
+    args.push('--extractor-args', 'youtube:player_client=ios,tv_embedded', '--extractor-args', 'youtube:player_skip=web,mweb,configs');
+    args.push('--geo-bypass-country', 'US');
+
+    if (isMP3Format) {
+      console.log(`🎵 Configuring for audio extraction`);
+      args.push('--extract-audio', '--audio-format', item.audioCodec || 'mp3', '--audio-quality', '0', '--no-video');
+      args.push('--format', 'bestaudio/best');
     } else {
-      args.push('--format', `bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best`);
+      const height = getHeightFromQuality(item.quality);
+      if (item.quality === 'best') {
+        args.push('--format', 'bestvideo+bestaudio/best');
+      } else {
+        args.push('--format', `bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best`);
+      }
+      args.push('--merge-output-format', 'mp4');
     }
-    args.push('--merge-output-format', 'mp4');
+  } else if (isMP3Format) {
+    console.log(`🎵 Configuring for audio extraction (Generic)`);
+    args.push('--extract-audio', '--audio-format', item.audioCodec || 'mp3', '--audio-quality', '0', '--no-video');
   } else {
     const height = getHeightFromQuality(item.quality);
     if (item.quality === 'best') {
@@ -320,7 +354,7 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
 
   if (process.env.HTTP_PROXY) args.push('--proxy', process.env.HTTP_PROXY);
   
-  args.push(item.url);
+  args.push(targetUrl);
   return args;
 }
 
@@ -626,23 +660,29 @@ async function extractVideoInfo(url: string): Promise<VideoInfo> {
     ];
 
     if (isYouTube) {
+      // Clean URL to avoid playlist bot-detection triggers
+      const targetUrl = cleanYouTubeUrl(url);
+      
       // EXTREME BYPASS arguments for YouTube - using most resilient clients
       args.push(
-        '--extractor-args', 'youtube:player_client=ios,android,tv_embedded',
+        '--extractor-args', 'youtube:player_client=ios,tv_embedded',
         '--extractor-args', 'youtube:player_skip=web,mweb,configs',
         '--geo-bypass',
+        '--geo-bypass-country', 'US',
         '--no-check-certificate'
       );
 
       // Use cookies if available
-      const cookieFile = findCookiesForUrl(url);
+      const cookieFile = findCookiesForUrl(targetUrl);
       if (cookieFile) {
         args.push('--cookies', cookieFile);
         console.log(`🍪 Using detected cookies: ${path.basename(cookieFile)}`);
       }
+      
+      args.push(targetUrl);
+    } else {
+      args.push(url);
     }
-
-    args.push(url);
 
     ytdlp = spawn('yt-dlp', args, {
       stdio: ['ignore', 'pipe', 'pipe']
@@ -1567,6 +1607,8 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
   try {
     const item = await storage.getDownloadItem(itemId);
     if (!item) return;
+    const isYouTube = item.url.toLowerCase().includes('youtube.com') || item.url.toLowerCase().includes('youtu.be');
+    const targetUrl = isYouTube ? cleanYouTubeUrl(item.url) : item.url;
 
     console.log(`🚀 ENHANCED BYPASS attempt ${retryCount} for ${itemId}`);
 
@@ -1644,9 +1686,7 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
       '--geo-bypass',
       '--geo-bypass-country', retryCount % 2 === 0 ? 'US' : 'GB', 
 
-      // Rate limiting and timing
-      '--limit-rate', '1M', 
-      '--throttled-rate', '100K',
+      // Timing
       '--sleep-interval', '5',
       '--max-sleep-interval', '20',
 
@@ -1704,7 +1744,7 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
       console.log(`🌐 Using proxy: ${process.env.HTTP_PROXY}`);
     }
 
-    args.push(item.url);
+    args.push(targetUrl);
 
     console.log(`🚀 Starting ENHANCED BYPASS download with strategy: ${strategy.description}`);
     console.log(`📋 Bypass args: ${args.slice(0, 10).join(' ')}...`);
@@ -1867,6 +1907,9 @@ async function downloadVideoWithFinalBypass(itemId: number): Promise<void> {
     const item = await storage.getDownloadItem(itemId);
     if (!item) return;
 
+    const isYouTube = item.url.toLowerCase().includes('youtube.com') || item.url.toLowerCase().includes('youtu.be');
+    const targetUrl = isYouTube ? cleanYouTubeUrl(item.url) : item.url;
+
     console.log(`🔥 FINAL BYPASS attempt for ${itemId} - using most aggressive techniques`);
 
     const settings = await storage.getSettings();
@@ -1912,10 +1955,6 @@ async function downloadVideoWithFinalBypass(itemId: number): Promise<void> {
       '--geo-bypass-country', 'CA', // Use Canadian IP
       '--force-ipv4',
       '--prefer-insecure',
-
-      // Rate limiting
-      '--limit-rate', '200K', // Very slow
-      '--throttled-rate', '50K',
 
       // Format with maximum fallbacks - IMPROVED for proper video/audio matching
       ...(isMP3Format ? [
@@ -1965,8 +2004,8 @@ async function downloadVideoWithFinalBypass(itemId: number): Promise<void> {
         console.log(`❌ Cookie extraction failed: ${error}`);
       }
     }
-
-    args.push(item.url);
+    
+    args.push(targetUrl);
 
     console.log(`🔥 Starting FINAL BYPASS with most aggressive techniques`);
 
@@ -2625,8 +2664,13 @@ async function initializeCookiesFromEnv(): Promise<void> {
     console.log(`📊 Cookie Stats: ${cookieCount} lines, HSID: ${hasHSID ? '✅' : '❌'}, SID: ${hasSID ? '✅' : '❌'}`);
     
     if (!hasHSID || !hasSID) {
-      console.error('CRITICAL: ❌ Cookies are missing session data (HSID/SID). YouTube will block the live server!');
-      console.error('FIX: Export cookies again from a browser where you are logged into YouTube, ensuring ALL domains are included.');
+      console.warn(`📊 Cookie Health Notice: HSID: ${hasHSID ? '✅' : '❌'}, SID: ${hasSID ? '✅' : '❌'}`);
+      if (!hasHSID && !hasSID) {
+        console.error('CRITICAL: ❌ Cookies are missing session data (HSID/SID). YouTube will block the live server!');
+        console.error('FIX: Export cookies again from a browser where you are logged into YouTube, ensuring ALL domains are included.');
+      } else if (!hasHSID) {
+        console.log('⚠️ HSID missing but SID present. Attempting to proceed with tv_embedded client bypass...');
+      }
     }
   } catch (e) {
     console.error('❌ Failed to decode YT_COOKIES_BASE64:', e);
