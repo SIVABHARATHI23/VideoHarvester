@@ -240,8 +240,6 @@ function getYouTubeExtractorArgs(cookieFile: string | null, preferredClient?: st
   }
 
   extraArgs.push('--rm-cache-dir');
-  // Attempt TLS fingerprint impersonation to bypass bot detection
-  extraArgs.push('--impersonate', 'chrome');
   // Removed geo-bypass as it causes bot detection and slows down downloads
   return extraArgs;
 }
@@ -1716,7 +1714,7 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
         '--extract-audio',
         '--audio-format', 'mp3',
         '--audio-quality', '0',
-        '--format', 'bestaudio/best',
+        '--format', 'b/best',
         '--output', outputTemplate 
       ] : [
         '--format', getBypassFormat(item.quality || 'best'),
