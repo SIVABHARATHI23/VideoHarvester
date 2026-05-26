@@ -10,7 +10,8 @@ import {
   Camera, Play, Globe, Clock, FileText, Image,
   ChevronDown, ChevronUp, Loader2, CheckCircle,
   AlertCircle, Info, Copy, Link2, Scissors,
-  Volume2, Palette, Filter, Target, BarChart3, FolderOpen
+  Volume2, Palette, Filter, Target, BarChart3, FolderOpen,
+  Facebook
 } from "lucide-react";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { FeatureHighlights } from "@/components/feature-highlights";
@@ -53,8 +54,17 @@ interface DownloadHistoryItem {
   platform: string;
 }
 
-export default function AdvancedDownloadForm() {
+interface AdvancedDownloadFormProps {
+  activeTab?: string;
+  setActiveTab?: (tab: string) => void;
+}
+
+export default function AdvancedDownloadForm({ activeTab: propActiveTab, setActiveTab: propSetActiveTab }: AdvancedDownloadFormProps) {
   const { toast } = useToast();
+  const [localActiveTab, setLocalActiveTab] = useState("youtube");
+  const activeTab = propActiveTab || localActiveTab;
+  const setActiveTab = propSetActiveTab || setLocalActiveTab;
+
   const [url, setUrl] = useState<string>("");
   const [selectedFormat, setSelectedFormat] = useState<string>("mp4");
   const [selectedQuality, setSelectedQuality] = useState<string>("best");
@@ -71,6 +81,64 @@ export default function AdvancedDownloadForm() {
   const [showFormatDropdown, setShowFormatDropdown] = useState<boolean>(false);
   const [selectedFormatId, setSelectedFormatId] = useState<string>("");
   const [showAllFormats, setShowAllFormats] = useState<boolean>(false);
+
+  // Dynamic Theme Colors based on activeTab
+  const getThemeStyles = () => {
+    switch (activeTab) {
+      case "youtube":
+        return {
+          primary: "bg-[#ff0000] hover:bg-[#cc0000]",
+          textColor: "text-[#ff0000]",
+          gradient: "from-[#ff0000] to-red-400",
+          ring: "focus-within:ring-red-500/20",
+          badgeBg: "bg-red-500 text-white"
+        };
+      case "instagram":
+        return {
+          primary: "bg-gradient-to-r from-pink-500 via-purple-500 to-orange-500 hover:opacity-90",
+          textColor: "text-[#e1306c]",
+          gradient: "from-pink-600 via-purple-600 to-orange-500",
+          ring: "focus-within:ring-pink-500/20",
+          badgeBg: "bg-gradient-to-r from-pink-500 to-orange-500 text-white"
+        };
+      case "facebook":
+        return {
+          primary: "bg-[#1877f2] hover:bg-[#156bec]",
+          textColor: "text-[#1877f2]",
+          gradient: "from-[#1877f2] to-blue-400",
+          ring: "focus-within:ring-blue-500/20",
+          badgeBg: "bg-[#1877f2] text-white"
+        };
+      case "pinterest":
+        return {
+          primary: "bg-[#bd081c] hover:bg-[#ad0616]",
+          textColor: "text-[#bd081c]",
+          gradient: "from-red-700 to-red-500",
+          ring: "focus-within:ring-red-600/20",
+          badgeBg: "bg-red-600 text-white"
+        };
+      default:
+        return {
+          primary: "bg-[#00b44b] hover:bg-[#009a3f]",
+          textColor: "text-[#00b44b]",
+          gradient: "from-[#00b44b] to-emerald-400",
+          ring: "focus-within:ring-[#00b44b]/20",
+          badgeBg: "bg-[#00b44b] text-white"
+        };
+    }
+  };
+
+  const theme = getThemeStyles();
+
+  const getPlaceholderText = () => {
+    switch (activeTab) {
+      case "youtube": return "Paste YouTube video, short, or playlist link here...";
+      case "instagram": return "Paste Instagram reel, post, story, or photo link here...";
+      case "facebook": return "Paste Facebook video, story, or watch link here...";
+      case "pinterest": return "Paste Pinterest video, idea pin, or image link here...";
+      default: return "Paste any video, audio, or image link here...";
+    }
+  };
 
   // Advanced options
   const [audioCodec, setAudioCodec] = useState<string>("mp3");
@@ -464,27 +532,60 @@ export default function AdvancedDownloadForm() {
       {/* Main Download Interface */}
       <div className="relative w-full space-y-8">
         <div className="space-y-10">
+          {/* Dynamic Platform Selection Tabs */}
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-2 bg-white/20 dark:bg-black/30 backdrop-blur-md p-2 rounded-2xl border border-white/10 max-w-2xl mx-auto shadow-md">
+            {[
+              { id: "youtube", label: "YouTube", icon: Video },
+              { id: "instagram", label: "Instagram", icon: Camera },
+              { id: "facebook", label: "Facebook", icon: Facebook },
+              { id: "pinterest", label: "Pinterest", icon: Image },
+              { id: "all", label: "All-in-One", icon: Globe }
+            ].map((tab) => {
+              const TabIcon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setVideoInfo(null);
+                    setInfoError(null);
+                    setUrl("");
+                  }}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${
+                    isActive 
+                      ? 'bg-white text-gray-900 shadow-md transform -translate-y-0.5 scale-105 border border-white' 
+                      : 'text-white hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <TabIcon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
           {/* Modern URL Input Hero - Sivabharathi Signature Edition */}
           <div className="max-w-[1000px] mx-auto animate-in slide-in-from-top duration-700">
             <div className="text-center mb-8">
-              <h2 className="text-4xl font-black text-gray-900 tracking-tighter sm:text-5xl mb-2">
-                VIDEO<span className="text-[#00b44b]">HARVESTER</span>
+              <h2 className="text-4xl font-black text-white tracking-tighter sm:text-5xl mb-2 drop-shadow-md">
+                VIDEO<span className="text-[#ffdd00]">HARVESTER</span>
               </h2>
-              <p className="text-sm font-bold text-gray-400 uppercase tracking-[0.3em]">
+              <p className="text-xs font-bold text-white/70 uppercase tracking-[0.3em]">
                 Engineered by Sivabharathi 2026
               </p>
             </div>
 
             <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-[#00b44b] to-emerald-400 rounded-3xl blur opacity-25 group-focus-within:opacity-50 transition duration-500"></div>
+              <div className={`absolute -inset-1 bg-gradient-to-r ${theme.gradient} rounded-3xl blur opacity-20 group-focus-within:opacity-40 transition duration-500`}></div>
 
-              <div className="relative flex flex-col sm:flex-row bg-white/90 backdrop-blur-2xl rounded-2xl overflow-hidden shadow-2xl border border-white/50 focus-within:ring-4 focus-within:ring-[#00b44b]/20 transition-all duration-300">
+              <div className={`relative flex flex-col sm:flex-row bg-white/95 backdrop-blur-2xl rounded-2xl overflow-hidden shadow-2xl border border-white/50 focus-within:ring-4 ${theme.ring} transition-all duration-300`}>
                 <div className="flex-1 flex items-center relative">
-                  <div className="absolute left-5 text-[#00b44b]">
+                  <div className={`absolute left-5 ${theme.textColor}`}>
                     <Zap className="w-6 h-6 fill-current animate-pulse" />
                   </div>
                   <Input
-                    placeholder="Enter URL to Harvest Content..."
+                    placeholder={getPlaceholderText()}
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
                     className="flex-1 h-16 text-xl border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-6 transition-all duration-300 text-gray-900 placeholder:text-gray-400 font-bold pl-14"
@@ -501,7 +602,7 @@ export default function AdvancedDownloadForm() {
                 <Button
                   onClick={handleSubmit}
                   disabled={isAnalyzing || !url.trim()}
-                  className="h-auto px-12 bg-[#00b44b] hover:bg-[#009a3f] text-white rounded-none font-black text-2xl transition-all duration-500 flex items-center gap-3 py-6 sm:py-0 shadow-lg"
+                  className={`h-auto px-12 ${theme.primary} text-white rounded-none font-black text-2xl transition-all duration-500 flex items-center gap-3 py-6 sm:py-0 shadow-lg`}
                 >
                   {isAnalyzing ? (
                     <Loader2 className="w-7 h-7 animate-spin" />

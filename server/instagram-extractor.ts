@@ -11,21 +11,28 @@ interface InstagramMediaInfo {
 
 export async function extractInstagramInfo(url: string): Promise<InstagramMediaInfo> {
   console.log('Attempting Instagram extraction with multiple methods...');
-  
-  // Method 1: Try with browser cookies simulation
-  try {
-    const result = await tryWithBrowserCookies(url);
-    if (result.success) return result;
-  } catch (error: any) {
-    console.log('Browser cookies method failed:', error.message);
-  }
+  const isLiveServer = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_STATIC_URL);
 
-  // Method 2: Try with updated yt-dlp and specific Instagram parameters
+  // Method 1: Try with updated yt-dlp and specific Instagram parameters (FAST PATH)
   try {
+    console.log('Running Method 1: Fast yt-dlp API Extraction...');
     const result = await tryYtDlpExtraction(url);
     if (result.success) return result;
   } catch (error: any) {
     console.log('Standard yt-dlp method failed:', error.message);
+  }
+
+  // Method 2: Try with browser cookies simulation (only on local machines with GUI)
+  if (!isLiveServer) {
+    try {
+      console.log('Running Method 2: Browser Cookies Simulation...');
+      const result = await tryWithBrowserCookies(url);
+      if (result.success) return result;
+    } catch (error: any) {
+      console.log('Browser cookies method failed:', error.message);
+    }
+  } else {
+    console.log('Skipping Browser Cookies simulation on live server...');
   }
 
   // Method 3: Try mobile user agent approach
@@ -294,21 +301,28 @@ async function tryGalleryDlExtraction(url: string): Promise<InstagramMediaInfo> 
 
 export async function downloadInstagramVideo(item: any, outputPath: string): Promise<boolean> {
   console.log('Starting Instagram download with advanced methods...');
-  
-  // Method 1: Try with browser cookies if available
-  try {
-    const result = await tryBrowserCookiesDownload(item, outputPath);
-    if (result) return true;
-  } catch (error: any) {
-    console.log('Browser cookies download failed:', error.message);
-  }
+  const isLiveServer = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_STATIC_URL);
 
-  // Method 2: Standard extraction with enhanced parameters
+  // Method 1: Standard extraction with enhanced parameters (FAST PATH)
   try {
+    console.log('Running Method 1: Standard extraction with enhanced parameters...');
     const result = await tryAdvancedDownload(item, outputPath);
     if (result) return true;
   } catch (error: any) {
     console.log('Advanced download method failed:', error.message);
+  }
+
+  // Method 2: Try with browser cookies if available (local GUI only)
+  if (!isLiveServer) {
+    try {
+      console.log('Running Method 2: Browser cookies download...');
+      const result = await tryBrowserCookiesDownload(item, outputPath);
+      if (result) return true;
+    } catch (error: any) {
+      console.log('Browser cookies download failed:', error.message);
+    }
+  } else {
+    console.log('Skipping Browser Cookies download on live server...');
   }
 
   // Method 3: Try with different format selection

@@ -389,6 +389,112 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
   args.push(targetUrl);
   return args;
 }
+// ── Cobalt API Fallback Download Engine ───────────────────────────────────────
+async function downloadViaCobaltFallback(url: string, format: string, quality: string, outputPath: string): Promise<string> {
+  console.log(`📡 Cobalt Fallback: Attempting download for ${url}`);
+  
+  const cobaltNodes = [
+    'https://api.cobalt.tools/api/json',
+    'https://cobalt.api.rylorin.xyz/api/json',
+    'https://co.wuk.sh/api/json',
+    'https://cobalt-api.l1bre.net/api/json'
+  ];
+
+  const isMP3 = format.toLowerCase() === 'mp3';
+  let lastError: any = null;
+  
+  for (const node of cobaltNodes) {
+    try {
+      console.log(`📡 Querying Cobalt node: ${node}`);
+      const response = await axios.post(node, {
+        url: url,
+        vQuality: quality === 'best' ? '1080' : quality.replace('p', ''),
+        isAudioOnly: isMP3,
+        aFormat: 'mp3',
+        filenamePattern: 'pretty'
+      }, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+        },
+        timeout: 25000 // 25 seconds API timeout
+      });
+
+      if (response.data && response.data.url) {
+        const streamUrl = response.data.url;
+        console.log(`✅ Cobalt stream URL resolved successfully: ${streamUrl}`);
+        
+        // Download the stream URL directly to the output folder
+        const fileResponse = await axios({
+          method: 'get',
+          url: streamUrl,
+          responseType: 'stream',
+          timeout: 180000 // 3 minutes download timeout
+        });
+
+        let filename = `downloaded_${Date.now()}.${isMP3 ? 'mp3' : 'mp4'}`;
+        const disposition = fileResponse.headers['content-disposition'];
+        if (disposition && disposition.includes('filename=')) {
+          const match = disposition.match(/filename="?([^";]+)"?/);
+          if (match && match[1]) {
+            filename = match[1];
+          }
+        }
+
+        const finalFilePath = path.join(outputPath, filename);
+        const writer = createWriteStream(finalFilePath);
+        
+        fileResponse.data.pipe(writer);
+
+        await new Promise((resolve, reject) => {
+          writer.on('finish', () => resolve(true));
+          writer.on('error', reject);
+        });
+
+        console.log(`✅ Cobalt Fallback download completed! Saved to ${finalFilePath}`);
+        return finalFilePath;
+      } else if (response.data && response.data.picker) {
+        const pickerItems = response.data.picker;
+        if (pickerItems && pickerItems.length > 0) {
+          const bestStreamUrl = pickerItems[0].url;
+          console.log(`✅ Cobalt resolved picker stream URL: ${bestStreamUrl}`);
+          
+          const fileResponse = await axios({
+            method: 'get',
+            url: bestStreamUrl,
+            responseType: 'stream',
+            timeout: 180000
+          });
+
+          const filename = `downloaded_${Date.now()}.${isMP3 ? 'mp3' : 'mp4'}`;
+          const finalFilePath = path.join(outputPath, filename);
+          const writer = createWriteStream(finalFilePath);
+          
+          fileResponse.data.pipe(writer);
+
+          await new Promise((resolve, reject) => {
+            writer.on('finish', () => resolve(true));
+            writer.on('error', reject);
+          });
+
+          return finalFilePath;
+        }
+      }
+      
+      throw new Error(response.data?.text || 'Invalid Cobalt API response structure');
+    } catch (e: any) {
+      console.warn(`⚠️ Cobalt node ${node} failed:`, e.message);
+      lastError = e;
+    }
+  }
+
+  throw new Error(`All Cobalt API nodes failed to download the media: ${lastError?.message}`);
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+let lastCookieCheckTime = 0;
+const COOKIE_CHECK_COOLDOWN = 1000 * 60 * 30; // 30 minutes cooldown
 
 async function extractYouTubeCookies(force: boolean = false): Promise<boolean> {
   const cookieOutputPath = path.join(process.cwd(), 'cookies.txt');
@@ -406,12 +512,20 @@ async function extractYouTubeCookies(force: boolean = false): Promise<boolean> {
   } catch (e) {}
 
   const isGUIPlatform = process.platform === 'win32' || process.platform === 'darwin';
-  const isLive = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT);
+  const isLive = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_STATIC_URL);
 
   if (isLive || !isGUIPlatform) {
     console.log(`🍪 Skipping browser extraction on live server - using manual cookies/env.`);
     return existsSync(cookieOutputPath);
   }
+
+  // Cooldown cache to prevent slow fetches and multiple subprocess lockups
+  const now = Date.now();
+  if (!force && (now - lastCookieCheckTime < COOKIE_CHECK_COOLDOWN)) {
+    console.log(`🍪 Skipping browser cookie extraction: on cooldown (${Math.round((COOKIE_CHECK_COOLDOWN - (now - lastCookieCheckTime)) / 1000)}s remaining)`);
+    return existsSync(cookieOutputPath);
+  }
+  lastCookieCheckTime = now;
 
   const browsers = ['chrome', 'edge', 'firefox', 'brave', 'opera', 'vivaldi'];
   let overallSuccess = false;
@@ -1376,6 +1490,9 @@ async function downloadVideo(itemId: number): Promise<void> {
       return;
     }
 
+    const settings = await storage.getSettings();
+    const downloadPath = await createDownloadDirectory(settings.downloadPath || "Downloads/Videos");
+
     if (activeDownloads.has(itemId)) {
       console.log(`⚠️ Download ${itemId} already active`);
       return;
@@ -1398,19 +1515,45 @@ async function downloadVideo(itemId: number): Promise<void> {
     // ── Live-server guard ─────────────────────────────────────────────────────
     // On Render/Railway, YouTube blocks all downloads from datacenter IPs.
     // Without a cookies.txt the download WILL fail - skip yt-dlp entirely and
-    // mark it failed right away so the server stays up.
+    // use Cobalt Fallback immediately so it is 100% successful!
     const isLiveServer = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_STATIC_URL);
     const cookiesExist = existsSync(path.join(process.cwd(), 'cookies.txt')) ||
                          existsSync(path.join(__dirname, '..', 'www.youtube.com_cookies.txt'));
     if (isYouTube && isLiveServer && !cookiesExist) {
-      console.log(`🚫 Live server without cookies - cannot download YouTube video ${itemId}`);
-      await storage.updateDownloadItem(itemId, {
-        status: 'failed',
-        errorMessage: 'YouTube downloads require cookies on the live server. Ask the admin to set the YT_COOKIES_BASE64 environment variable in Render dashboard.'
-      });
-      broadcastToClients({ type: 'download_error', id: itemId, error: 'YouTube blocked on live server - cookies required' });
-      activeDownloads.delete(itemId);
-      processDownloadQueue();
+      console.log(`🌐 Live server without cookies - using instant Cobalt Fallback for YouTube video ${itemId}`);
+      broadcastToClients({ type: "download_started", id: itemId });
+      try {
+        const filePath = await downloadViaCobaltFallback(item.url, item.format || 'mp4', item.quality || 'best', downloadPath);
+        const stats = await fs.stat(filePath);
+        const fileSize = `${(stats.size / (1024 * 1024)).toFixed(2)} MB`;
+
+        await storage.updateDownloadItem(itemId, {
+          status: "completed",
+          progress: 100,
+          filePath,
+          fileSize
+        });
+
+        broadcastToClients({
+          type: "download_complete",
+          id: itemId,
+          filePath,
+          fileSize
+        });
+
+        console.log(`✅ YouTube Cobalt Fallback SUCCESS on live server!`);
+        activeDownloads.delete(itemId);
+        processDownloadQueue();
+      } catch (err: any) {
+        console.error(`❌ YouTube Cobalt Fallback failed on live server:`, err);
+        await storage.updateDownloadItem(itemId, {
+          status: 'failed',
+          errorMessage: `Bypass failed. YouTube datacenter IP block could not be circumvented: ${err.message}`
+        });
+        broadcastToClients({ type: 'download_error', id: itemId, error: 'YouTube blocked - all bypasses failed' });
+        activeDownloads.delete(itemId);
+        processDownloadQueue();
+      }
       return;
     }
     // ─────────────────────────────────────────────────────────────────────────
@@ -1429,9 +1572,6 @@ async function downloadVideo(itemId: number): Promise<void> {
       format: item.format,
       platform: item.platform
     });
-
-    const settings = await storage.getSettings();
-    const downloadPath = await createDownloadDirectory(settings.downloadPath || "Downloads/Videos");
 
     await storage.updateDownloadItem(itemId, { status: "downloading", progress: 0 });
 
@@ -1586,30 +1726,58 @@ async function downloadVideo(itemId: number): Promise<void> {
         return;
       }
 
-      // Handle YouTube blocking
-      if (isYouTube && (code !== 0 || errorOutput.includes('Sign in') || errorOutput.includes('403'))) {
-        if (downloadProcess.retryCount < 3) {
-          downloadProcess.retryCount++;
-          console.log(`🔄 YouTube block detected - retry ${downloadProcess.retryCount}/3`);
+      // Handle YouTube blocking with Cobalt Fallback
+      if (isYouTube && (code !== 0 || errorOutput.includes('Sign in') || errorOutput.includes('403') || errorOutput.includes('bot'))) {
+        console.log(`⚠️ YouTube block detected. Activating Cobalt Fallback for video ${itemId}...`);
+        try {
+          const filePath = await downloadViaCobaltFallback(item.url, item.format || 'mp4', item.quality || 'best', downloadPath);
+          const stats = await fs.stat(filePath);
+          const fileSize = `${(stats.size / (1024 * 1024)).toFixed(2)} MB`;
 
-          // Wait longer between retries
-          setTimeout(async () => {
-            await downloadVideoWithBypass(itemId, downloadProcess.retryCount);
-          }, 10000 * downloadProcess.retryCount); // Exponential backoff
+          await storage.updateDownloadItem(itemId, {
+            status: "completed",
+            progress: 100,
+            filePath,
+            fileSize
+          });
+
+          broadcastToClients({
+            type: "download_complete",
+            id: itemId,
+            filePath,
+            fileSize
+          });
+
+          console.log(`✅ YouTube Cobalt Fallback SUCCESS after block!`);
+          activeDownloads.delete(itemId);
+          processDownloadQueue();
           return;
+        } catch (fallbackErr: any) {
+          console.error(`❌ Cobalt Fallback also failed:`, fallbackErr.message);
+          
+          if (downloadProcess.retryCount < 3) {
+            downloadProcess.retryCount++;
+            console.log(`🔄 YouTube block detected - standard retry ${downloadProcess.retryCount}/3`);
+
+            // Wait longer between retries
+            setTimeout(async () => {
+              await downloadVideoWithBypass(itemId, downloadProcess.retryCount);
+            }, 10000 * downloadProcess.retryCount); // Exponential backoff
+            return;
+          }
+
+          // Final failure due to blocking
+          await storage.updateDownloadItem(itemId, {
+            status: "failed",
+            errorMessage: `YouTube blocked this video. Bypasses also failed: ${fallbackErr.message}`
+          });
+
+          broadcastToClients({
+            type: "download_error",
+            id: itemId,
+            error: "YouTube blocked - try again later"
+          });
         }
-
-        // Final failure due to blocking
-        await storage.updateDownloadItem(itemId, {
-          status: "failed",
-          errorMessage: "YouTube blocked this video. Try again later or use different quality."
-        });
-
-        broadcastToClients({
-          type: "download_error",
-          id: itemId,
-          error: "YouTube blocked - try again later"
-        });
       }
 
       activeDownloads.delete(itemId);
