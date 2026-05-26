@@ -409,13 +409,29 @@ async function downloadViaCobaltFallback(url: string, format: string, quality: s
   for (const node of cobaltNodes) {
     try {
       console.log(`📡 Querying Cobalt node: ${node}`);
-      const response = await axios.post(node, {
+      
+      const payload: any = {
         url: targetUrl,
-        videoQuality: quality === 'best' ? '1080' : quality.replace('p', ''),
         isAudioOnly: isMP3,
-        audioFormat: 'mp3',
         filenameStyle: 'pretty'
-      }, {
+      };
+
+      if (isMP3) {
+        payload.audioFormat = 'mp3';
+      } else {
+        let vQual = '1080';
+        const cleanQuality = quality.toLowerCase().replace('p', '');
+        if (['max', '4320', '2160', '1440', '1080', '720', '480', '360', '240', '144'].includes(cleanQuality)) {
+          vQual = cleanQuality;
+        } else if (quality === 'best') {
+          vQual = '1080';
+        } else {
+          vQual = 'max';
+        }
+        payload.videoQuality = vQual;
+      }
+
+      const response = await axios.post(node, payload, {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
