@@ -391,7 +391,8 @@ async function buildDownloadArgs(item: any, outputPath: string): Promise<string[
 }
 // ── Cobalt API Fallback Download Engine ───────────────────────────────────────
 async function downloadViaCobaltFallback(url: string, format: string, quality: string, outputPath: string): Promise<string> {
-  console.log(`📡 Cobalt Fallback: Attempting download for ${url}`);
+  const targetUrl = cleanYouTubeUrl(url);
+  console.log(`📡 Cobalt Fallback: Attempting download for ${targetUrl}`);
   
   const cobaltNodes = [
     'https://subito-c.meowing.de/',
@@ -409,7 +410,7 @@ async function downloadViaCobaltFallback(url: string, format: string, quality: s
     try {
       console.log(`📡 Querying Cobalt node: ${node}`);
       const response = await axios.post(node, {
-        url: url,
+        url: targetUrl,
         vQuality: quality === 'best' ? '1080' : quality.replace('p', ''),
         isAudioOnly: isMP3,
         aFormat: 'mp3',
