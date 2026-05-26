@@ -59,6 +59,32 @@ interface AdvancedDownloadFormProps {
   setActiveTab?: (tab: string) => void;
 }
 
+const getFormattedSizeOrEstimate = (f: { format: string; resolution: string; quality: string; fileSize?: string }) => {
+  const size = f.fileSize;
+  if (!size || size.toLowerCase() === 'unknown' || size.toLowerCase() === 'na' || size.toLowerCase() === 'n/a') {
+    if (f.format === 'MP3') {
+      if (f.resolution === '320KBPS' || f.quality === 'high') {
+        return 'Est. ~8 MB';
+      }
+      if (f.resolution === '128KBPS' || f.quality === 'medium') {
+        return 'Est. ~3 MB';
+      }
+      return 'Est. ~5 MB';
+    }
+    
+    // For video / others
+    const res = (f.quality || f.resolution || '').toLowerCase();
+    if (res.includes('2160') || res.includes('4k')) return 'Ultra HD';
+    if (res.includes('1440') || res.includes('2k')) return '2K Quad HD';
+    if (res.includes('1080')) return 'Full HD';
+    if (res.includes('720')) return '720p HD';
+    if (res.includes('480')) return '480p SD';
+    if (res.includes('360')) return '360p Mobile';
+    return 'Premium Quality';
+  }
+  return size;
+};
+
 export default function AdvancedDownloadForm({ activeTab: propActiveTab, setActiveTab: propSetActiveTab }: AdvancedDownloadFormProps) {
   const { toast } = useToast();
   const [localActiveTab, setLocalActiveTab] = useState("youtube");
@@ -651,10 +677,17 @@ export default function AdvancedDownloadForm({ activeTab: propActiveTab, setActi
                       {info.title || 'Unknown Asset'}
                     </h3>
                     <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2 text-sm font-black text-gray-500 uppercase tracking-widest">
-                        <Clock className="w-4 h-4" />
-                        {info.duration || '00:00'}
-                      </div>
+                      {info.duration && info.duration.toLowerCase() !== 'unknown' ? (
+                        <div className="flex items-center gap-2 text-sm font-black text-gray-500 uppercase tracking-widest">
+                          <Clock className="w-4 h-4" />
+                          {info.duration}
+                        </div>
+                      ) : (
+                        <Badge className="bg-emerald-500/10 hover:bg-emerald-500/20 text-[#00b44b] border border-emerald-500/20 px-3 py-1.5 font-black text-[10px] uppercase tracking-wider rounded-full flex items-center gap-1.5 shadow-sm">
+                          <Zap className="w-3.5 h-3.5 fill-current animate-pulse text-[#00b44b]" />
+                          HD Quality
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -678,7 +711,7 @@ export default function AdvancedDownloadForm({ activeTab: propActiveTab, setActi
                               <span className="bg-[#ffdd00] text-gray-900 w-12 h-12 flex items-center justify-center rounded-xl font-black text-xs">MP3</span>
                               <div>
                                 <div className="font-black text-gray-900">{f.resolution}</div>
-                                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{f.fileSize || 'BEST QUALITY'}</div>
+                                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{getFormattedSizeOrEstimate(f)}</div>
                               </div>
                             </div>
                             <Button
@@ -717,7 +750,7 @@ export default function AdvancedDownloadForm({ activeTab: propActiveTab, setActi
                               <span className="bg-[#00b44b] text-white w-12 h-12 flex items-center justify-center rounded-xl font-black text-xs uppercase">{f.format}</span>
                               <div>
                                 <div className="font-black text-gray-900">{f.resolution}</div>
-                                <div className="text-[10px] font-bold text-[#00b44b] uppercase tracking-widest">{f.quality} • {f.fileSize || 'RAW'}</div>
+                                <div className="text-[10px] font-bold text-[#00b44b] uppercase tracking-widest">{f.quality} • {getFormattedSizeOrEstimate(f)}</div>
                               </div>
                             </div>
                             <Button
@@ -755,7 +788,7 @@ export default function AdvancedDownloadForm({ activeTab: propActiveTab, setActi
                                   <span className="bg-[#ff1493] text-white w-12 h-12 flex items-center justify-center rounded-xl font-black text-xs uppercase">IMG</span>
                                   <div>
                                     <div className="font-black text-gray-900">{f.resolution}</div>
-                                    <div className="text-[10px] font-bold text-[#ff1493] uppercase tracking-widest">{f.quality} • {f.fileSize || 'RAW'}</div>
+                                    <div className="text-[10px] font-bold text-[#ff1493] uppercase tracking-widest">{f.quality} • {getFormattedSizeOrEstimate(f)}</div>
                                   </div>
                                 </div>
                                 <Button

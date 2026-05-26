@@ -394,10 +394,12 @@ async function downloadViaCobaltFallback(url: string, format: string, quality: s
   console.log(`📡 Cobalt Fallback: Attempting download for ${url}`);
   
   const cobaltNodes = [
-    'https://api.cobalt.tools/api/json',
-    'https://cobalt.api.rylorin.xyz/api/json',
-    'https://co.wuk.sh/api/json',
-    'https://cobalt-api.l1bre.net/api/json'
+    'https://subito-c.meowing.de/',
+    'https://nuko-c.meowing.de/',
+    'https://apicobalt.mgytr.top/',
+    'https://cobalt.omega.wolfy.love/',
+    'https://grapefruit.clxxped.lol/',
+    'https://api.cobalt.tools/'
   ];
 
   const isMP3 = format.toLowerCase() === 'mp3';
@@ -408,9 +410,9 @@ async function downloadViaCobaltFallback(url: string, format: string, quality: s
       console.log(`📡 Querying Cobalt node: ${node}`);
       const response = await axios.post(node, {
         url: url,
-        vQuality: quality === 'best' ? '1080' : quality.replace('p', ''),
-        isAudioOnly: isMP3,
-        aFormat: 'mp3',
+        videoQuality: quality === 'best' ? '1080' : quality.replace('p', ''),
+        downloadMode: isMP3 ? 'audio' : 'auto',
+        audioFormat: 'mp3',
         filenamePattern: 'pretty'
       }, {
         headers: {
@@ -482,7 +484,8 @@ async function downloadViaCobaltFallback(url: string, format: string, quality: s
         }
       }
       
-      throw new Error(response.data?.text || 'Invalid Cobalt API response structure');
+      const errMsg = response.data?.error?.code || response.data?.text || 'Invalid Cobalt API response structure';
+      throw new Error(errMsg);
     } catch (e: any) {
       console.warn(`⚠️ Cobalt node ${node} failed:`, e.message);
       lastError = e;
