@@ -411,9 +411,9 @@ async function downloadViaCobaltFallback(url: string, format: string, quality: s
       console.log(`📡 Querying Cobalt node: ${node}`);
       const response = await axios.post(node, {
         url: targetUrl,
-        vQuality: quality === 'best' ? '1080' : quality.replace('p', ''),
+        videoQuality: quality === 'best' ? '1080' : quality.replace('p', ''),
         isAudioOnly: isMP3,
-        aFormat: 'mp3',
+        audioFormat: 'mp3',
         filenameStyle: 'pretty'
       }, {
         headers: {
