@@ -509,7 +509,105 @@ async function downloadViaCobaltFallback(url: string, format: string, quality: s
     }
   }
 
-  throw new Error(`All Cobalt API nodes failed to download the media: ${lastError?.message}`);
+  // ── Invidious Fallback Downloader ──────────────────────────────────────────
+  const youtubeIdMatch = targetUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|shorts\/)|youtu\.be\/)([^"&?\/\s]{11})/);
+  const videoId = youtubeIdMatch ? youtubeIdMatch[1] : null;
+
+  if (videoId) {
+    console.log(`⚠️ Cobalt Fallback failed. Activating Invidious Fallback engine for YouTube video: ${videoId}`);
+    
+    const invidiousInstances = [
+      'https://yewtu.be',
+      'https://inv.tux.im',
+      'https://invidious.projectsegfau.lt',
+      'https://invidious.privacydev.net',
+      'https://invidious.nerdvpn.de'
+    ];
+
+    let invidiousError = null;
+
+    for (const instance of invidiousInstances) {
+      try {
+        console.log(`📡 Invidious Fallback: Querying instance ${instance}`);
+        const res = await axios.get(`${instance}/api/v1/videos/${videoId}?local=true`, {
+          timeout: 15000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+          }
+        });
+
+        if (res.data) {
+          let targetStreamUrl = '';
+          let filename = `downloaded_${Date.now()}.${isMP3 ? 'mp3' : 'mp4'}`;
+
+          if (isMP3) {
+            // Audio mode: look in adaptiveFormats
+            const audioFormats = (res.data.adaptiveFormats || []).filter((f: any) => f.type && f.type.startsWith('audio/'));
+            if (audioFormats.length > 0) {
+              // Sort by bitrate descending to get best quality
+              audioFormats.sort((a: any, b: any) => (parseInt(b.bitrate) || 0) - (parseInt(a.bitrate) || 0));
+              targetStreamUrl = audioFormats[0].url;
+              console.log(`✅ Invidious resolved adaptive audio stream (bitrate: ${audioFormats[0].bitrate})`);
+            }
+          } else {
+            // Video mode: progressive formats in formatStreams (video + audio combined)
+            const videoStreams = (res.data.formatStreams || []).filter((f: any) => f.container === 'mp4' || (f.type && f.type.includes('video/mp4')));
+            if (videoStreams.length > 0) {
+              // Try to find matching resolution, otherwise pick highest available
+              const targetRes = quality === 'best' ? '720p' : (quality.includes('p') ? quality : `${quality}p`);
+              let selectedStream = videoStreams.find((f: any) => f.qualityLabel === targetRes);
+              if (!selectedStream) {
+                // Sort by resolution descending to get best progressive stream
+                videoStreams.sort((a: any, b: any) => {
+                  const resA = parseInt(a.qualityLabel) || 0;
+                  const resB = parseInt(b.qualityLabel) || 0;
+                  return resB - resA;
+                });
+                selectedStream = videoStreams[0];
+              }
+              targetStreamUrl = selectedStream.url;
+              console.log(`✅ Invidious resolved progressive MP4 stream (quality: ${selectedStream.qualityLabel})`);
+            }
+          }
+
+          if (targetStreamUrl) {
+            // Invidious URLs may be relative to the instance
+            if (targetStreamUrl.startsWith('/')) {
+              targetStreamUrl = `${instance}${targetStreamUrl}`;
+            }
+
+            console.log(`📡 Invidious: Downloading stream URL: ${targetStreamUrl}`);
+
+            const fileResponse = await axios({
+              method: 'get',
+              url: targetStreamUrl,
+              responseType: 'stream',
+              timeout: 180000 // 3 minutes download timeout
+            });
+
+            const finalFilePath = path.join(outputPath, filename);
+            const writer = createWriteStream(finalFilePath);
+            
+            fileResponse.data.pipe(writer);
+
+            await new Promise((resolve, reject) => {
+              writer.on('finish', () => resolve(true));
+              writer.on('error', reject);
+            });
+
+            console.log(`✅ Invidious Fallback download completed! Saved to ${finalFilePath}`);
+            return finalFilePath;
+          }
+        }
+        throw new Error('Invidious response did not contain suitable streams');
+      } catch (err: any) {
+        console.warn(`⚠️ Invidious instance ${instance} failed:`, err.message);
+        invidiousError = err;
+      }
+    }
+  }
+
+  throw new Error(`All Cobalt and Invidious nodes failed to download the media: ${lastError?.message}`);
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
