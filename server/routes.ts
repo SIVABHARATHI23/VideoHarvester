@@ -228,13 +228,14 @@ function getYouTubeExtractorArgs(cookieFile: string | null, preferredClient?: st
     extractorArg += `;po_token=web+${poToken}`;
     extraArgs.push('--extractor-args', extractorArg);
   } else {
-    // If no PO token, use the preferred client or fall back to high-success ones
-    const client = preferredClient || (cookieFile ? 'tv_embedded,ios' : 'ios,tv_embedded');
+    // If we have cookies, we MUST use the 'web' client (or allow it) so that yt-dlp actually uses the authenticated session cookies!
+    // If we have no cookies, we fall back to tv_embedded,ios which works best for residential cookie-less requests.
+    const client = preferredClient || (cookieFile ? 'web,tv_embedded,ios' : 'tv_embedded,ios');
     console.log(`🛡️ Using YouTube client bypass: ${client}`);
     extraArgs.push('--extractor-args', `youtube:player_client=${client}`);
     
-    // Skip web/mweb as they are most likely to trigger bot detection on server IPs
-    if (!client.includes('web')) {
+    // Skip web/mweb ONLY if we don't have cookies and aren't forcing the web client
+    if (!cookieFile && !client.includes('web')) {
       extraArgs.push('--extractor-args', 'youtube:player_skip=web,mweb,configs');
     }
   }
@@ -1928,8 +1929,19 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
     const settings = await storage.getSettings();
     const downloadPath = await createDownloadDirectory(settings.downloadPath || "Downloads/Videos");
 
+    const rootCookiePath = path.join(process.cwd(), 'cookies.txt');
+    const localCookiePath = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
+    const hasCookies = existsSync(rootCookiePath) || existsSync(localCookiePath);
+
     // Enhanced bypass strategies with more options
     const bypassStrategies = [
+      ...(hasCookies ? [
+        {
+          client: 'web,tv_embedded,ios',
+          description: 'Web-Authenticated-Bypass',
+          ua: getRandomUserAgent()
+        }
+      ] : []),
       {
         // Strategy 1: iOS (Standalone)
         client: 'ios',
@@ -2019,8 +2031,6 @@ async function downloadVideoWithBypass(itemId: number, retryCount: number): Prom
     ];
 
     // Cookie + PO Token handling (centralized)
-    const rootCookiePath = path.join(process.cwd(), 'cookies.txt');
-    const localCookiePath = path.join(__dirname, '..', 'www.youtube.com_cookies.txt');
     
     // On live server, skip browser extraction (no browser available)
     const isLive = !!(process.env.RENDER || process.env.RAILWAY_ENVIRONMENT);
